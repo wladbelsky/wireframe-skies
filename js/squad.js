@@ -11,6 +11,7 @@
    rejoin (back to the slot after a fight). Evading a missile is a break turn + flares, then reposition. */
 const CRUISE = 24;
 const SAME_SEA_T = 60, SAME_LAND_T = 150, SCOUT_R = 3000;
+const ROUTE_CLEAR = 35;   // the route's minimum height above the terrain under / ahead of it
 const MOPUP_T = 14, MOPUP_R = 450;   // s of mop-up after the music; how far from the flight an on-screen enemy still counts   // s over open sea / land before the route heads for a coast; look-out range
 const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first)
   finger:  [[0, 0, 0], [-9, 0, -7], [9, 0, -7], [18, 0, -14]],
@@ -36,7 +37,10 @@ const ROUTE = {
     }
     if (this.altT <= 0) { this.altT = rand(10, 30); this.tgtAlt = rand(38, 140); }
     this.heading = approachAngle(this.heading, this.tgtHeading, 0.06 * dt);
-    this.alt += clamp(this.tgtAlt - this.alt, -3.5 * dt, 3.5 * dt);
+    // altitude: the chosen one, but always ROUTE_CLEAR above the terrain under and ahead of the route (climb faster then)
+    let g = 0; for (let d = 0; d <= 600; d += 100) g = Math.max(g, TERRAIN.height(this.pos.x + this.fwd.x * d, this.pos.z + this.fwd.z * d));
+    const want = Math.max(this.tgtAlt, g + ROUTE_CLEAR);
+    this.alt += clamp(want - this.alt, -3.5 * dt, (this.alt < g + ROUTE_CLEAR ? 10 : 3.5) * dt);
     const sp = this.combat ? this.cruise * 0.45 : this.cruise; this.speed += clamp(sp - this.speed, -6 * dt, 4 * dt);
     this.fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading)); this.right.set(-Math.cos(this.heading), 0, Math.sin(this.heading));
     this.pos.addScaledVector(this.fwd, this.speed * dt); this.pos.y = this.alt;
@@ -187,21 +191,21 @@ const SQUAD = {
       _lp.copy(t.pos); if (t.vel) _lp.addScaledVector(t.vel, Math.min(2, d / 70));
       if (t.ground) {
         // ground run: approach at altitude, then a shallow dive onto it
-        if (d > 230) _lp.y = clamp(p.pos.y, 55, 110); else _lp.y = t.pos.y + 3;
+        if (d > 230) _lp.y = t.pos.y + clamp(p.pos.y - t.pos.y, 55, 110); else _lp.y = t.pos.y + 3;
       }
       _D.subVectors(_lp, p.pos).normalize();
-      if (t.ground && p.pos.y < 34 && _D.y < 0) _D.y = 0.15;
+      if (t.ground && p.agl < 34 && _D.y < 0) _D.y = 0.15;
       _D.y = clamp(_D.y, -0.6, 0.6); _D.normalize();
       const aim = p.dir.dot(_tg.subVectors(t.pos, p.pos).normalize());
       const inRange = d > 35 && d < (t.ground ? 190 : 210) && aim > 0.86;
       p.ready = inRange && p.cd <= 0 ? p.ready + dt : 0;
       if (this.firing && p.ready > (this.mopT > 0 ? 0.7 : 1.6)) this.shoot(p);   // no beats (quiet music / mop-up): shoot anyway
-      if (d < 26 || (t.ground && d < 45 && p.pos.y < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
+      if (d < 26 || (t.ground && d < 45 && p.agl < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
     } else if (!p.maneuvering) {
       // repositioning / nothing to do: extend, stay near the battle area, keep a sane altitude
       _c.subVectors(ROUTE.pos, p.pos); const far = _c.length();
       _D.copy(p.dir); if (far > 260) _D.lerp(_c.normalize(), 0.6);
-      _D.y = clamp(_D.y + (70 - p.pos.y) * 0.006, -0.4, 0.5); _D.normalize();
+      _D.y = clamp(_D.y + (70 - p.agl) * 0.006, -0.4, 0.5); _D.normalize();
     }
   },
   release(p) {

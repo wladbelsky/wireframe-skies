@@ -41,10 +41,10 @@ test('every maneuver keeps the basis orthonormal and returns control', async ({ 
   const r = await wp.run(() => {
     const out = {};
     for (const name of Object.keys(MANEUVERS)) {
-      const p = new Plane({ speed: 30 }); p.place(new THREE.Vector3(0, 140, 0), 0.3, 0);
+      const p = new Plane({ speed: 30 }); p.place(new THREE.Vector3(0, TERRAIN.height(0, 0) + 110, 0), 0.3, 0);
       p.maneuver(name, MANEUVERS[name].segs(30, 1));
       let t = 0, ortho = 0, minY = Infinity;
-      while (p.maneuvering && t < 20) { p.steer(new THREE.Vector3(0, 0, 1), 0.05); p.move(0.05); t += 0.05; ortho = Math.max(ortho, Math.abs(p.dir.dot(p.up))); minY = Math.min(minY, p.pos.y); }
+      while (p.maneuvering && t < 20) { p.steer(new THREE.Vector3(0, 0, 1), 0.05); p.move(0.05); t += 0.05; ortho = Math.max(ortho, Math.abs(p.dir.dot(p.up))); minY = Math.min(minY, p.agl); }
       out[name] = { t: +t.toFixed(2), ortho, minY: +minY.toFixed(1), done: !p.maneuvering };
     }
     return out;
@@ -60,10 +60,10 @@ test('every maneuver keeps the basis orthonormal and returns control', async ({ 
 test('steering never flies into the ground, even when told to', async ({ wp }) => {
   await wp.boot();
   const minY = await wp.run(() => {
-    const p = new Plane({ speed: 32, turnRate: 0.5 }); p.place(new THREE.Vector3(0, 80, 0), 0, -0.9); p.rateMul = 1;
+    const p = new Plane({ speed: 32, turnRate: 0.5 }); p.place(new THREE.Vector3(0, TERRAIN.height(0, 0) + 80, 0), 0, -0.9); p.rateMul = 1;
     let m = Infinity; const down = new THREE.Vector3(0, -1, 0.2).normalize();
-    for (let i = 0; i < 600; i++) { p.rateMul = 1; p.steer(down, 0.05); p.move(0.05); m = Math.min(m, p.pos.y); }
+    for (let i = 0; i < 600; i++) { p.rateMul = 1; p.steer(down, 0.05); p.move(0.05); m = Math.min(m, p.agl); }
     return m;
   });
-  expect(minY, 'lowest altitude (the floor is 16, the last-resort clamp 9.6)').toBeGreaterThan(12);
+  expect(minY, 'lowest height above the ground (the floor is 16, the last-resort clamp 9.6)').toBeGreaterThan(12);
 });

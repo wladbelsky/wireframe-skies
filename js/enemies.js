@@ -39,7 +39,7 @@ class EnemyForce extends Force {
   airGroup(n) {
     const type = wpick(['fighter', 'bomber', 'attacker', 'heli'].map(k => ({ k, w: ENEMY_TYPES[k].w }))).k, ty = ENEMY_TYPES[type];
     const ahead = type === 'heli' ? rand(300, 450) : rand(500, 750);
-    _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, ahead).addScaledVector(ROUTE.right, rand(-300, 300)); _e.y = rand(ty.alt[0], ty.alt[1]);
+    _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, ahead).addScaledVector(ROUTE.right, rand(-300, 300)); _e.y = TERRAIN.height(_e.x, _e.z) + rand(ty.alt[0], ty.alt[1]);
     // they come at the flight, roughly
     const toward = Math.atan2(ROUTE.pos.x - _e.x, ROUTE.pos.z - _e.z) + rand(-0.5, 0.5);
     _r.set(Math.cos(toward), 0, -Math.sin(toward)); _b.set(Math.sin(toward), 0, Math.cos(toward));
@@ -70,8 +70,8 @@ class EnemyForce extends Force {
     e.modeT -= dt; e.cd -= dt;
     const tgt = this.nearestFriend(e.pos);
     if (e.state === 'retreat') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; }   // turn away and climb
-    else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - e.pos.y) * 0.05; }
-    else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - e.pos.y) * 0.01; }
+    else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - pl.agl) * 0.05; }
+    else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - pl.agl) * 0.01; }
     else {   // fighters: merge, then dogfight with jinks
       if (e.mode === 'merge' && tgt && e.pos.distanceTo(tgt.pos) < 180) { e.mode = 'dogfight'; e.modeT = rand(3, 6); }
       if (e.mode === 'dogfight' && e.modeT <= 0) { e.modeT = e.ace ? rand(2.5, 5) : rand(4, 8); if (Math.random() < (e.ace ? 0.8 : 0.5)) tryManeuver(pl, ['breakTurn', 'barrel', 'splitS', 'immelmann']); }
@@ -88,7 +88,7 @@ class EnemyForce extends Force {
       for (const g of this.list) {
         if (!g.alive || g.ty.fires !== 'guns') continue;
         const f = this.nearestFriend(g.pos, 220); if (!f) continue;
-        _q.set(g.pos.x, 4, g.pos.z);
+        _q.set(g.pos.x, g.pos.y + 4, g.pos.z);
         _r.subVectors(f.pos, _q).normalize().add(_b.set(rand(-0.12, 0.12), rand(0.05, 0.15), rand(-0.12, 0.12))).normalize().multiplyScalar(90);
         for (let i = 0; i < 3; i++) TRACERS.spawn(_e.copy(_q).addScaledVector(_r, i * 0.03), _r, 2.2, true);
       }
@@ -98,7 +98,7 @@ class EnemyForce extends Force {
     if (!shooters.length) return;
     const s = pick(shooters), f = this.nearestFriend(s.pos, 300);
     if (s.plane) { _r.subVectors(f.pos, s.pos).normalize(); if (s.plane.dir.dot(_r) < 0.5) return; _q.copy(s.pos).addScaledVector(s.plane.dir, 2); _r.copy(s.plane.dir); }
-    else { _q.set(s.pos.x, s.ty.cls === 'sea' ? 4 : 3, s.pos.z); _r.subVectors(f.pos, _q).normalize(); _r.y = Math.max(_r.y, 0.4); _r.normalize(); }
+    else { _q.set(s.pos.x, s.pos.y + (s.ty.cls === 'sea' ? 4 : 3), s.pos.z); _r.subVectors(f.pos, _q).normalize(); _r.y = Math.max(_r.y, 0.4); _r.normalize(); }
     MISSILES.fire({ p: _q, d: _r, speed: s.plane ? s.plane.speed + 5 : 12, target: f, hit: false, enemy: true });
     GLOW.spawn(_q, { c: PAL.enemy, s: 3, life: 0.3 });
     SQUAD.threat(f);

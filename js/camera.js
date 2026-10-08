@@ -54,7 +54,7 @@ const CAM = {
     const dist = this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3);
     const th = this.heading + this.cur.az * DEG, el = clamp(this.cur.el, 3, 85) * DEG;
     _co.set(Math.sin(th) * Math.cos(el), Math.sin(el), Math.cos(th) * Math.cos(el)).multiplyScalar(dist);
-    camera.position.copy(this.focus).add(_co); camera.position.y = Math.max(camera.position.y, 6);
+    camera.position.copy(this.focus).add(_co); camera.position.y = Math.max(camera.position.y, TERRAIN.height(camera.position.x, camera.position.z) + 6);
     camera.lookAt(this.focus);
     camera.updateMatrixWorld();
     this.right.setFromMatrixColumn(camera.matrixWorld, 0); this.upv.setFromMatrixColumn(camera.matrixWorld, 1);

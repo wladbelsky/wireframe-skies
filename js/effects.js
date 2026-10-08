@@ -94,8 +94,9 @@ const LINES = {
   },
   /* altitude line from p down to the ground with a small cross there; grow < 1: only that part, from the ground up */
   drop(p, c, a, w, grow) {
-    this.add(p.x, p.y * (grow == null ? 1 : grow), p.z, p.x, 0, p.z, c, a * 0.8, a * 0.35, w || 2.2);
-    const s = 1.4; this.add(p.x - s, 0, p.z, p.x + s, 0, p.z, c, a * 0.6, a * 0.6, 1.4); this.add(p.x, 0, p.z - s, p.x, 0, p.z + s, c, a * 0.6, a * 0.6, 1.4);
+    const g = TERRAIN.height(p.x, p.z), top = g + (p.y - g) * (grow == null ? 1 : grow);
+    this.add(p.x, top, p.z, p.x, g, p.z, c, a * 0.8, a * 0.35, w || 2.2);
+    const s = 1.4; this.add(p.x - s, g, p.z, p.x + s, g, p.z, c, a * 0.6, a * 0.6, 1.4); this.add(p.x, g, p.z - s, p.x, g, p.z + s, c, a * 0.6, a * 0.6, 1.4);
   },
   /* a camera-facing X of size r around p */
   cross(p, r, c, a, w) {
@@ -172,7 +173,7 @@ const BURSTS = {
   build() { for (let i = 0; i < this.N; i++) this.pool.push({ p: new V3(), c: new THREE.Color(), t: 1, life: 1, r: 1, ground: false }); },
   spawn(p, color, r, ground) {
     const b = this.pool.find(x => x.t >= x.life) || this.pool.reduce((a, x) => (x.t / x.life > a.t / a.life ? x : a));
-    b.t = 0; b.life = ground ? 1.6 : 1.1; b.r = r; b.ground = ground; b.p.copy(p); b.c.copy(color);
+    b.t = 0; b.life = ground ? 1.6 : 1.1; b.r = r; b.ground = ground; b.p.copy(p); b.c.copy(color); b.gy = ground ? TERRAIN.height(p.x, p.z) : 0;
     const n = Math.round(8 + r * 2);
     for (let i = 0; i < n; i++) GLOW.spawn(p, { v: new V3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(4, 14) * r / 3), c: i % 3 ? PAL.flare : color, s: rand(0.6, 1.3), a: 0.8, life: rand(0.4, 1.1), drag: 1.5, grav: ground ? 6 : 2 });
     GLOW.spawn(p, { c: PAL.white, s: r * 2.6, life: 0.3 });
@@ -184,7 +185,7 @@ const BURSTS = {
       const u = Math.min(1, b.t / b.life), e = 1 - Math.pow(1 - u, 3), a = (1 - u) * 0.9;
       LINES.circle(b.p, b.r * (0.4 + e * 1.6), b.c, a, false, 2, 18);
       if (b.r > 2) LINES.circle(b.p, b.r * (0.2 + e * 0.9), b.c, a * 0.6, false, 1.4, 14);
-      if (b.ground) LINES.circle(_bg.set(b.p.x, 0.2, b.p.z), b.r * (0.6 + e * 3), b.c, a * 0.8, true, 1.6, 24);
+      if (b.ground) LINES.circle(_bg.set(b.p.x, b.gy + 0.2, b.p.z), b.r * (0.6 + e * 3), b.c, a * 0.8, true, 1.6, 24);
     }
   },
   shift(dx, dz) { for (const b of this.pool) { b.p.x -= dx; b.p.z -= dz; } }
@@ -222,7 +223,7 @@ const MISSILES = {
         if (m.hit && m.age > 8) { this.detonate(m, true); continue; }   // never fly forever: it got there
       } else if (m.lock > m.age) { m.hit = false; m.lock = m.age; }   // target gone: fly on briefly, then self-destruct
       if (!m.hit && m.age > m.lock + 2.5) { this.detonate(m, false); continue; }
-      if (m.p.y < 1) { this.detonate(m, false); continue; }
+      if (m.p.y < HSCALE * 6 && m.p.y < TERRAIN.height(m.p.x, m.p.z) + 0.5) { this.detonate(m, false); continue; }   // into the ground
       m.p.addScaledVector(m.d, m.speed * dt);
       m.hacc += dt;
       if (m.hacc >= MSL_HDT) { m.hacc %= MSL_HDT; m.hist.copyWithin(3, 0, (MSL_HIST - 1) * 3); m.hn = Math.min(MSL_HIST, m.hn + 1); }

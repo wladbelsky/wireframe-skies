@@ -37,6 +37,9 @@ function reliefField(x, z, land) {
   const r = vnoise(x, z, 512, 7) * 0.6 + vnoise(x, z, 128, 8) * 0.3 + vnoise(x, z, 64, 9) * 0.1;
   return Math.max(land, 0) * (1.2 + mt * 5) + mt * r * Math.min(1, Math.max(land, 0) * 12) * 1.6;
 }
+/* terrain height in units: the relief scaled (mountains up to ~100), 0 at sea level; contour lines are every 1/14 of relief */
+const HSCALE = 26;
+function heightField(x, z, land) { return reliefField(x, z, land) * HSCALE; }
 function cityField(x, z, land) {
   const c = clamp((vnoise(x, z, 512, 10) - 0.62) / 0.12, 0, 1);
   return c * clamp(land * 30, 0, 1) * clamp((0.2 - land) * 10, 0, 1);
@@ -63,6 +66,7 @@ float reliefField(vec2 p, float land){
   float r = vnoise(p, 512.0, 7.0) * 0.6 + vnoise(p, 128.0, 8.0) * 0.3 + vnoise(p, 64.0, 9.0) * 0.1;
   return max(land, 0.0) * (1.2 + mt * 5.0) + mt * r * min(1.0, max(land, 0.0) * 12.0) * 1.6;
 }
+float heightField(vec2 p, float land){ return reliefField(p, land) * ${HSCALE.toFixed(1)}; }
 float cityField(vec2 p, float land){
   float c = clamp((vnoise(p, 512.0, 10.0) - 0.62) / 0.12, 0.0, 1.0);
   return c * clamp(land * 30.0, 0.0, 1.0) * clamp((0.2 - land) * 10.0, 0.0, 1.0);

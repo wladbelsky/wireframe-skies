@@ -39,4 +39,4 @@ function drawGlyph(g, pos, fwd, up, scale, c, a, w) {
 }
 /* a ground / sea marker lying flat at height y, turned to heading h */
 const _hf = new V3(), _hp = new V3();
-function drawMarker(g, x, z, h, scale, c, a, w) { _hf.set(Math.sin(h), 0, Math.cos(h)); drawGlyph(g, _hp.set(x, 0.15, z), _hf, UP, scale, c, a, w); }
+function drawMarker(g, x, y, z, h, scale, c, a, w) { _hf.set(Math.sin(h), 0, Math.cos(h)); drawGlyph(g, _hp.set(x, y + 0.15, z), _hf, UP, scale, c, a, w); }

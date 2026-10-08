@@ -22,7 +22,7 @@ test('render preview.jpg', async ({ wp, page }) => {
     (0, eval)(toCoast)();
     __t.sim(30, { audio: false }); __t.forceFight(); __t.sim(t, { audio: true, draw: true });
     draw();
-  }, [`(${toCoast})`, Number(process.env.PREVIEW_T || 26)]);
+  }, [`(${toCoast})`, Number(process.env.PREVIEW_T || 40)]);
   await page.screenshot({ path: path.join(__dirname, '..', 'preview.jpg'), type: 'jpeg', quality: 88 });
 });
 
@@ -48,6 +48,12 @@ test('render scenario shots', async ({ wp, page }) => {
     const p = SQUAD.planes[0], g = p.pos.clone().addScaledVector(p.dir, 60).setY(0);
     ENEMIES.spawn('sam', g, 0); ENEMIES.spawn('fighter', g.clone().setY(p.pos.y + 10).add(new THREE.Vector3(20, 0, 0)), 0);
     __t.sim(0.7, { audio: true, draw: true }); CAM.focus.copy(g).setY(10); CAM.cur.dist = 90; CAM.cur.el = 30; CAM.place();
+  });
+  // mountains: the camera low over the highest ground nearby
+  await shot('10-mountains', () => {
+    let best = null, bh = -1;
+    for (let i = 0; i < 3000; i++) { const x = ROUTE.pos.x + rand(-4000, 4000), z = ROUTE.pos.z + rand(-4000, 4000), h = TERRAIN.height(x, z); if (h > bh) { bh = h; best = new THREE.Vector3(x, h, z); } }
+    CAM.focus.copy(best); CAM.cur.dist = 260; CAM.cur.el = 14; CAM.place(); draw();
   });
   // the music stops: mop-up, then the leftovers retreat (flicker, poles sinking)
   await shot('8-mopup', () => { __t.fightOff(); __t.sim(DISARM_DELAY + 3, { audio: false, draw: true }); });

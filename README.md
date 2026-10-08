@@ -1,9 +1,11 @@
 # Wireframe Skies — web wallpaper for Wallpaper Engine
 
+**[▶ Live demo](https://wladbelsky.github.io/wireframe-skies/)** — runs in the browser (⚙ SETTINGS → demo beat, or play an audio file).
+
 ![preview](preview.jpg)
 
-A flight replay in the style of a mission-results screen: a dark void, a perspective grid and a wireframe map —
-coastlines, contour lines, city blocks — and schematic, glowing symbols: the four-ship flight as green arrowheads with
+A flight replay in the style of a mission-results screen: a dark void, a perspective grid and a wireframe map in
+relief — coastlines, contour lines over hills and mountains, city blocks — and schematic, glowing symbols: the four-ship flight as green arrowheads with
 their callsigns, altitude lines down to the ground and trails; ground units and ships as markers on the map with a pole
 up to their name — green for the flight, blue for allies, red for the enemy. No result tables, no HUD: just the replay.
 

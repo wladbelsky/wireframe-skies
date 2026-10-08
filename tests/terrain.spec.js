@@ -42,3 +42,21 @@ test('fields tile with NOISE_P and a recentre keeps the map in place', async ({ 
   expect(r.moved).toBeLessThan(1e-9);
   expect(r.shifts).toBe(1);
 });
+
+test('terrain height: 0 at sea, rising inland, mountains within reach of the flight', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    let seaMax = 0, landMax = 0, landN = 0, jump = 0;
+    for (let i = 0; i < 6000; i++) {
+      const x = rand(-30000, 30000), z = rand(-30000, 30000), l = TERRAIN.land(x, z), h = TERRAIN.height(x, z);
+      if (l <= 0) seaMax = Math.max(seaMax, Math.abs(h)); else { landMax = Math.max(landMax, h); landN++; }
+      jump = Math.max(jump, Math.abs(TERRAIN.height(x + 4, z) - h));   // no cliffs: smooth over a few units
+    }
+    return { seaMax, landMax, landN, jump };
+  });
+  expect(r.seaMax).toBe(0);
+  expect(r.landN).toBeGreaterThan(1000);
+  expect(r.landMax, 'there are hills / mountains').toBeGreaterThan(20);
+  expect(r.landMax, 'mountains stay below the route clearance range').toBeLessThan(150);
+  expect(r.jump).toBeLessThan(6);
+});

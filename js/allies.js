@@ -41,10 +41,10 @@ class AllyForce extends Force {
   }
   airGroup(room) {
     if (Math.random() < 0.25) {   // an AWACS high above, slowly crossing
-      _a.y = rand(170, 200); return this.spawn('awacs', _a, ROUTE.heading + rand(-1.2, 1.2)) ? 1 : 0;
+      _a.y = TERRAIN.height(_a.x, _a.z) + rand(170, 200); return this.spawn('awacs', _a, ROUTE.heading + rand(-1.2, 1.2)) ? 1 : 0;
     }
     const cs = pick(ALLY_CALLSIGNS), n = Math.min(room, Math.random() < 0.5 ? 2 : 4), h = ROUTE.heading + (Math.random() < 0.5 ? rand(-0.3, 0.3) : Math.PI + rand(-0.3, 0.3));
-    _a.y = rand(70, 140); _ab.set(Math.cos(h), 0, -Math.sin(h));
+    _a.y = TERRAIN.height(_a.x, _a.z) + rand(70, 140); _ab.set(Math.cos(h), 0, -Math.sin(h));
     let made = 0;
     for (let i = 0; i < n; i++) {
       const k = Math.ceil(i / 2);   // finger formation: 9 to the side, 7 back per pair
@@ -62,7 +62,7 @@ class AllyForce extends Force {
     }
     e.target = null;
     // cruise: hold the heading and the altitude band
-    _a.set(Math.sin(e.heading), 0, Math.cos(e.heading)); _a.y = ((e.ty.alt[0] + e.ty.alt[1]) / 2 - e.pos.y) * 0.01;
+    _a.set(Math.sin(e.heading), 0, Math.cos(e.heading)); _a.y = ((e.ty.alt[0] + e.ty.alt[1]) / 2 - pl.agl) * 0.01;
     this.steerAir(e, _a, dt, 1);
   }
   /* in a fight: one allied missile per beat at most, from a ship / SAM / fighter with an enemy in range */
@@ -77,7 +77,7 @@ class AllyForce extends Force {
     if (!cands.length) return;
     const [s, t] = pick(cands);
     if (s.plane) { _a.copy(s.pos).addScaledVector(s.plane.dir, 2); _ad.copy(s.plane.dir); }
-    else { _a.set(s.pos.x, 3, s.pos.z); _ad.subVectors(t.pos, _a).normalize(); _ad.y = Math.max(_ad.y, 0.5); _ad.normalize(); }
+    else { _a.set(s.pos.x, s.pos.y + 3, s.pos.z); _ad.subVectors(t.pos, _a).normalize(); _ad.y = Math.max(_ad.y, 0.5); _ad.normalize(); }
     if (!MISSILES.fire({ p: _a, d: _ad, speed: s.plane ? s.plane.speed + 6 : 14, target: t, hit: true, c: PAL.ally, onHit: () => { t.incoming = Math.max(0, t.incoming - 1); ENEMIES.damage(t, 1); } })) return;
     t.incoming++;
     GLOW.spawn(_a, { c: PAL.ally, s: 3, life: 0.3 });

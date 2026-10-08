@@ -62,3 +62,7 @@ test('every WE property is read by applyUserProperties', () => {
   const main = read('js/main.js');
   for (const k of props) expect(main, `has('${k}') in main.js`).toContain(`has('${k}')`);
 });
+
+test('README links the live demo', () => {
+  expect(read('README.md')).toContain('https://wladbelsky.github.io/wireframe-skies/');
+});

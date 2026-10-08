@@ -5,7 +5,7 @@
    straight flight is wings level), turning is slower while it is still rolling in. Maneuvers are scripted body rates
    (roll p, pitch q) that take over for a few seconds: loops, rolls, Immelmann, split-S, break turns.
    Glyph axes: nose +Z (dir), up +Y (up), x = up × dir. */
-const FLOOR = 16, CEIL = 260;   // hard altitude limits for every aircraft (units; ground is y = 0)
+const FLOOR = 16, CEIL = 320;   // altitude limits for every aircraft: FLOOR above the ground under it / ahead, CEIL absolute
 const _ax = new V3(), _pp = new V3(), _gu = new V3(), _du = new V3(), _dd = new V3();
 
 class Plane {
@@ -16,6 +16,9 @@ class Plane {
     this.man = null;   // { segs: [{ d, p, q }], i, t, name }
   }
   get maneuvering() { return !!this.man; }
+  get agl() { return this.pos.y - TERRAIN.height(this.pos.x, this.pos.z); }   // height above the ground
+  /* the ground height to keep clear of: under the aircraft and where it will be in t seconds */
+  groundAhead(t) { const k = this.speed * t; return Math.max(TERRAIN.height(this.pos.x, this.pos.z), TERRAIN.height(this.pos.x + this.dir.x * k, this.pos.z + this.dir.z * k)); }
   place(p, heading, pitch) {
     this.pos.copy(p); this.dir.set(Math.sin(heading) * Math.cos(pitch || 0), Math.sin(pitch || 0), Math.cos(heading) * Math.cos(pitch || 0));
     this.up.set(0, 1, 0); this.orthoUp();
@@ -31,7 +34,8 @@ class Plane {
     if (this.man) { this.runManeuver(dt); return; }
     // keep out of the ground / the stratosphere whatever the caller wants
     _dd.copy(D);
-    const yp = this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5;   // where a dive takes it in 2.5 s
+    // where a dive takes it in 2.5 s, against the ground under it and ahead
+    const yp = this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5 - this.groundAhead(2.5);
     const low = yp < FLOOR + 14;   // pull-up: full rate, never mind the roll
     if (low) { _dd.y = Math.max(_dd.y, 0.2 + (FLOOR + 14 - yp) * 0.03); this.rateMul = Math.max(this.rateMul, 2); }
     if (this.pos.y > CEIL - 20) _dd.y = Math.min(_dd.y, -(this.pos.y - CEIL + 20) * 0.03);
@@ -69,29 +73,29 @@ class Plane {
     this.dir.normalize(); this.orthoUp();
     m.t += dt; if (m.t >= s.d) { m.t = 0; m.i++; if (m.i >= m.segs.length) this.man = null; }
     // never into the ground: a maneuver heading down near the floor is cut short (steering pulls up next step)
-    if (this.man && this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5 < FLOOR + 12) this.man = null;
+    if (this.man && this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5 - this.groundAhead(2.5) < FLOOR + 12) this.man = null;
     if (this.man && this.pos.y > CEIL && this.dir.y > 0.05) this.man = null;
   }
   move(dt) {
     this.speed += clamp(this.tgtSpeed - this.speed, -this.accel * dt, this.accel * dt);
     this.pos.addScaledVector(this.dir, this.speed * dt);
-    if (this.pos.y < FLOOR * 0.6) this.pos.y = FLOOR * 0.6;   // last resort (never seen in tests)
+    const g = TERRAIN.height(this.pos.x, this.pos.z) + FLOOR * 0.6; if (this.pos.y < g) this.pos.y = g;   // last resort (never seen in tests)
   }
 }
 
 /* ---- maneuver library: name → { min / max altitude needed, segments for a plane at speed v } ----
    R = v / q is the loop radius; s = ±1 picks the side. */
 const MANEUVERS = {
-  loop:      { w: 1.0, need: (p, R) => p.pos.y > FLOOR + 20 && p.pos.y + 2 * R < CEIL - 10 && Math.abs(p.dir.y) < 0.35,
+  loop:      { w: 1.0, need: (p, R) => p.agl > FLOOR + 20 && p.pos.y + 2 * R < CEIL - 10 && Math.abs(p.dir.y) < 0.35,
                segs: (v, s) => { const q = 0.9; return [{ d: TAU / q, q }]; } },
-  barrel:    { w: 1.2, need: (p, R) => p.pos.y > FLOOR + R + 15 && p.pos.y + R < CEIL - 10,
+  barrel:    { w: 1.2, need: (p, R) => p.agl > FLOOR + R + 15 && p.pos.y + R < CEIL - 10,
                segs: (v, s) => [{ d: 4, p: s * TAU / 4, q: 0.55 }] },
-  aileron:   { w: 1.0, need: (p) => p.pos.y > FLOOR + 10, segs: (v, s) => [{ d: 1.7, p: s * TAU / 1.7 }] },
+  aileron:   { w: 1.0, need: (p) => p.agl > FLOOR + 10, segs: (v, s) => [{ d: 1.7, p: s * TAU / 1.7 }] },
   immelmann: { w: 1.0, need: (p, R) => p.pos.y + 2 * R < CEIL - 10 && Math.abs(p.dir.y) < 0.35,
                segs: (v, s) => [{ d: Math.PI / 0.95, q: 0.95 }, { d: 1.1, p: s * Math.PI / 1.1 }] },
-  splitS:    { w: 1.0, need: (p, R) => p.pos.y - 2 * R > FLOOR + 25 && Math.abs(p.dir.y) < 0.35,
+  splitS:    { w: 1.0, need: (p, R) => p.pos.y - 2 * R - p.groundAhead(3) > FLOOR + 25 && Math.abs(p.dir.y) < 0.35,
                segs: (v, s) => [{ d: 1.1, p: s * Math.PI / 1.1 }, { d: Math.PI / 0.95, q: 0.95 }] },
-  breakTurn: { w: 1.4, need: (p) => p.pos.y > FLOOR + 8, segs: (v, s) => [{ d: 0.55, p: s * 2.6 }, { d: 2.8, q: 1.05 }] },
+  breakTurn: { w: 1.4, need: (p) => p.agl > FLOOR + 8, segs: (v, s) => [{ d: 0.55, p: s * 2.6 }, { d: 2.8, q: 1.05 }] },
   wingover:  { w: 0.8, need: (p, R) => p.pos.y + R < CEIL - 10, segs: (v, s) => [{ d: 0.6, p: s * 1.6 }, { d: 3.4, q: 0.85 }, { d: 0.6, p: -s * 1.6 }] }
 };
 /* start a random maneuver the plane has room for (names: allow-list); returns its name or null */

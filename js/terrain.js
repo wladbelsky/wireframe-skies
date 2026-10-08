@@ -1,8 +1,12 @@
 'use strict';
 /* ===== World origin, terrain fields, ground shader =====
-   The ground is a flat map at y = 0, drawn entirely in a fragment shader: grid, sea dots, coastline, contour lines,
-   city blocks — the look of the Ace Combat replay screen. Nothing is generated per chunk: the fields are functions of
-   the world position (js/noise.js), so the landscape changes as the flight moves and never repeats noticeably. */
+   The ground is a grid mesh that follows the camera, lifted by the terrain height in its vertex shader (sea = 0,
+   mountains up to ~100) and drawn entirely in a fragment shader: grid, sea dots, coastline, contour lines (one per
+   1/14 of relief, ~1.9 units of height), city blocks — the look of the replay screen. Nothing is generated per chunk: the fields are
+   functions of the world position (js/noise.js), so the landscape changes as the flight moves and never repeats.
+   The mesh snaps to whole GROUND_STEP cells of the world, so its vertices always sample the same world points (no
+   swimming); TERRAIN.height (JS) is the same function, so units stand and aircraft fly on what is drawn. */
+const GROUND_STEP = 32, GROUND_CELLS = 240;   // vertex spacing (divides NOISE_P), cells per side (7680 units)
 
 /* ---- floating origin: local coordinates stay small however long the wallpaper runs ----
    world = local + WORLD.origin. WORLD.recenter() moves the origin to the flight when it strays > RECENTER units and
@@ -28,6 +32,8 @@ const TERRAIN = {
     out = out || {}; out.land = land; out.relief = reliefField(wx, wz, land); out.city = cityField(wx, wz, land); out.mount = mountField(wx, wz);
     return out;
   },
+  /* ground height at a local position (0 at sea) */
+  height(x, z) { const wx = WORLD.wx(x), wz = WORLD.wz(z); return heightField(wx, wz, landField(wx, wz)); },
   isSea(x, z) { return this.land(x, z) < -0.04; },
   isLand(x, z) { return this.land(x, z) > 0.02; },
   mesh: null, uniforms: null,
@@ -38,16 +44,21 @@ const TERRAIN = {
       uFog: { value: new THREE.Vector2(700, 2600) }, uDebug: { value: 0 }
     };
     const mat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms, depthWrite: false, extensions: { derivatives: true },
-      vertexShader: `
-        varying vec2 vW;
-        void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      uniforms: this.uniforms, extensions: { derivatives: true },
+      vertexShader: NOISE_GLSL + `
+        varying vec3 vP; uniform vec2 uOrigin; uniform float uDebug;
+        void main(){
+          vec4 w = modelMatrix * vec4(position, 1.0);
+          vec2 p = w.xz + uOrigin;
+          if (uDebug < 0.5) w.y = heightField(p, landField(p));      // debug views stay flat (land / sea mask tests)
+          vP = w.xyz; gl_Position = projectionMatrix * viewMatrix * w;
+        }`,
       fragmentShader: NOISE_GLSL + `
-        varying vec2 vW; uniform vec3 uCam;
+        varying vec3 vP; uniform vec3 uCam;
         uniform vec2 uOrigin; uniform vec3 uGrid, uLand, uBg; uniform vec2 uFog; uniform float uDebug;
         float lineAA(float v, float w){ float d = abs(fract(v - 0.5) - 0.5) / max(fwidth(v), 1e-4); return 1.0 - clamp(d - w, 0.0, 1.0); }
         void main(){
-          vec2 p = vW + uOrigin;
+          vec2 p = vP.xz + uOrigin;
           float land = landField(p);
           if (uDebug > 0.5 && uDebug < 1.5) { gl_FragColor = vec4(vec3(land > 0.0 ? 1.0 : 0.0), 1.0); return; }
           float relief = reliefField(p, land), city = cityField(p, land);
@@ -74,20 +85,21 @@ const TERRAIN = {
           vec2 blk = mod(ci, 6.0);                                         // a street every sixth lot
           float lot = step(h, city * 0.5) * step(0.5, blk.x) * step(0.5, blk.y) * step(0.18, cf.x) * step(cf.x, 0.82 - h * 0.3) * step(0.15, cf.y) * step(cf.y, 0.85);
           col += uLand * lot * (0.12 + h * 0.3) * (1.0 - smoothstep(0.15, 0.5, px / 8.0));
-          float fog = 1.0 - smoothstep(uFog.x, uFog.y, distance(vec3(vW.x, 0.0, vW.y), uCam));   // per pixel: the quad is huge
+          float fog = 1.0 - smoothstep(uFog.x, uFog.y, distance(vP, uCam));   // per pixel: the mesh is huge
           gl_FragColor = vec4(uBg + col * fog, 1.0);
           if (uDebug > 1.5) gl_FragColor = vec4(gMin, px, fog, 1.0);
         }`
     });
-    const geo = new THREE.PlaneGeometry(9000, 9000); geo.rotateX(-Math.PI / 2);
+    const geo = new THREE.PlaneGeometry(GROUND_STEP * GROUND_CELLS, GROUND_STEP * GROUND_CELLS, GROUND_CELLS, GROUND_CELLS); geo.rotateX(-Math.PI / 2);
     this.mesh = new THREE.Mesh(geo, mat); this.mesh.renderOrder = -10; this.mesh.frustumCulled = false;
     scene.add(this.mesh);
   },
-  /* every frame: the plane follows the camera's focus, the shader gets the wrapped origin */
+  /* every frame: the mesh follows the camera's focus in whole world cells, the shader gets the wrapped origin */
   update(cam, focus) {
-    this.mesh.position.set(focus.x, 0, focus.z);
+    const S = GROUND_STEP, ox = WORLD.origin.x, oz = WORLD.origin.z;
+    this.mesh.position.set(Math.round((focus.x + ox) / S) * S - ox, 0, Math.round((focus.z + oz) / S) * S - oz);
     this.uniforms.uOrigin.value.set(wrapP(WORLD.origin.x), wrapP(WORLD.origin.z));
     this.uniforms.uCam.value.copy(cam.position);
-    const far = Math.max(1800, cam.position.y * 4 + 1200); this.uniforms.uFog.value.set(far * 0.3, far);
+    const far = Math.min(GROUND_STEP * GROUND_CELLS * 0.45, Math.max(1800, cam.position.y * 4 + 1200)); this.uniforms.uFog.value.set(far * 0.3, far);   // fogged out before the mesh ends
   }
 };

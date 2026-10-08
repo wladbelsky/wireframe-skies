@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=21`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=23`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -61,8 +61,15 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   harness hides it unless `boot({ splash: true })`.
 
 ## World, terrain, floating origin
-- Ground is the plane y = 0; the map is drawn only by the ground fragment shader (`terrain.js`). Nothing is
-  generated per chunk: the fields are functions of the world position.
+- The ground is a grid mesh (`GROUND_CELLS`² cells of `GROUND_STEP`) lifted by `heightField` in its vertex shader
+  (sea 0, mountains up to ~100 = relief × `HSCALE`); the map itself (grid, coast, contours, cities) is drawn by the
+  fragment shader. Nothing is generated per chunk: the fields are functions of the world position.
+- The mesh follows the camera **in whole world cells** (`TERRAIN.update` snaps in world coordinates), so vertices
+  always sample the same world points — no swimming. `GROUND_STEP` must divide `NOISE_P`.
+- **Everything stands on `TERRAIN.height(x, z)`** (the same function as the vertex shader): ground units (`pos.y`,
+  updated as they crawl), markers / poles / cross-outs / bursts, altitude lines (`LINES.drop`), missiles hitting the
+  ground, the camera's minimum height. Between vertices the drawn surface is linear, so it can differ from the
+  exact height by a little on steep slopes — fine for lines drawn without depth test.
 - **Floating origin:** world = local + `WORLD.origin`. `WORLD.recenter` (from `step`) shifts the origin to `ROUTE.pos`
   when it is > `RECENTER` units out and calls every `WORLD.onShift` handler with `(dx, dz)`. **Anything new that
   stores positions must register a `shift(dx, dz)`** (see the list in `init()`), or it jumps on the next recentre.
@@ -74,8 +81,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Flight (`js/flight.js`, `js/squad.js`)
 - `Plane`: kinematic — `dir` turns toward the commanded direction at `turnRate × rateMul` (slower until rolled in),
-  `up` rolls toward the lift direction (turn + 1 g). `steer` keeps it above `FLOOR` with a 2.5 s look-ahead
-  (full-rate pull-up) and below `CEIL`. Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
+  `up` rolls toward the lift direction (turn + 1 g). `steer` keeps it `FLOOR` above the ground under it and 2.5 s
+  ahead (`groundAhead`, full-rate pull-up) and below `CEIL`. Altitudes for AI / maneuver checks are `p.agl`
+  (above ground level); `ROUTE` stays `ROUTE_CLEAR` above the terrain under / 600 units ahead of it (climbs faster). Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
   `steer`; one heading for the ground is cut short. New maneuver: an entry in `MANEUVERS` with `need(plane, R)`.
 - `ROUTE` moves the formation across the map (gentle turns, altitude changes); in combat it slows down (the battle
   area drifts forward); after the mop-up `SQUAD.rejoin` restarts it from the flight's centroid.

@@ -46,14 +46,15 @@
       const w = `plane ${p.idx + 1}[${p.mode}${p.man ? ':' + p.man.name : ''}]`;
       if (!fin(p.pos) || !fin(p.dir) || !fin(p.up) || !Number.isFinite(p.speed)) v.push(`${w} non-finite state`);
       if (Math.abs(p.dir.length() - 1) > 1e-3 || Math.abs(p.up.length() - 1) > 1e-3 || Math.abs(p.dir.dot(p.up)) > 1e-3) v.push(`${w} basis not orthonormal`);
-      if (p.pos.y < FLOOR * 0.6 + 0.01 - 1e-6) v.push(`${w} on the ground floor (y=${p.pos.y.toFixed(1)})`);
+      const agl = p.agl;
+      if (agl < FLOOR * 0.6 + 0.01 - 1e-6) v.push(`${w} on the ground floor (agl=${agl.toFixed(1)})`);
       if (p.pos.y > CEIL + 60) v.push(`${w} too high (y=${p.pos.y.toFixed(1)})`);
       if (far(p.pos)) v.push(`${w} far from the origin (${p.pos.x.toFixed(0)}, ${p.pos.z.toFixed(0)})`);
       if (!H.MODES.has(p.mode)) v.push(`${w} unknown mode`);
       if (!p.alive) v.push(`${w} lost`);
       if (p.target && (!p.target.alive || !ENEMIES.list.includes(p.target))) v.push(`${w} chasing a dead / freed target`);
       if (p.mode === 'engage' && !p.target) v.push(`${w} engaging nothing`);
-      H.minY = Math.min(H.minY, p.pos.y);
+      H.minY = Math.min(H.minY, agl);   // lowest height above the ground
     }
     if (!SQUAD.engaged && SQUAD.planes.some(p => p.mode === 'engage')) v.push('engaging out of combat');
     if (SQUAD.mopT > 0 && SQUAD.planes.some(p => p.target && !p.target.mop)) v.push('mop-up target not marked');
@@ -66,6 +67,8 @@
       if (far(e.pos)) v.push(`${e.type} far from the origin`);
       if (e.chasers < 0 || e.incoming < 0) v.push(`${e.type} negative counters`);
       if (e.ty.cls === 'sea' && e.state === 'live' && TERRAIN.land(e.pos.x, e.pos.z) > 0) v.push(`${e.type} on land`);
+      if (e.ground && e.state === 'live' && Math.abs(e.pos.y - TERRAIN.height(e.pos.x, e.pos.z)) > 1e-6) v.push(`${e.type} not on the ground (y=${e.pos.y.toFixed(2)})`);
+      if (e.plane && e.state === 'live' && e.plane.agl < FLOOR * 0.6 - 1e-3) v.push(`${e.type} below the ground floor`);
       if (e.ty.cls === 'ground' && e.state === 'live' && TERRAIN.land(e.pos.x, e.pos.z) < 0) v.push(`${e.type} in the sea`);
     }
     const chasers = new Map(); for (const p of SQUAD.planes) if (p.target) chasers.set(p.target, (chasers.get(p.target) || 0) + 1);

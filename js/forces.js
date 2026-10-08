@@ -45,7 +45,7 @@ class Force {
     s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false;
     setLabel(s.label, s.name, this.css, false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
-    else { s.pos.set(pos.x, 0, pos.z); s.vel.set(0, 0, 0); }
+    else { s.pos.set(pos.x, TERRAIN.height(pos.x, pos.z), pos.z); s.vel.set(0, 0, 0); }   // on the ground (ships: sea level)
     this.list.push(s); this.spawned++;
     return s;
   }
@@ -59,7 +59,7 @@ class Force {
     if (e.hp > 0) { BURSTS.spawn(e.pos, this.color, 1.2, false); return; }
     e.alive = false; e.state = 'struck'; e.t = 0; this.kills++;
     this.onGone(e);
-    BURSTS.spawn(e.ground ? _fq.set(e.pos.x, 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);
+    BURSTS.spawn(e.ground ? _fq.set(e.pos.x, e.pos.y + 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);
     setLabel(e.label, e.name, this.css, true);
   }
 
@@ -113,7 +113,7 @@ class Force {
     _fq.set(Math.sin(e.heading), 0, Math.cos(e.heading));
     const nx = e.pos.x + _fq.x * 25, nz = e.pos.z + _fq.z * 25, ok = e.ty.cls === 'sea' ? TERRAIN.isSea(nx, nz) : TERRAIN.isLand(nx, nz);
     if (!ok) { e.heading += 0.6 * dt; e.vel.set(0, 0, 0); return; }
-    e.vel.copy(_fq).multiplyScalar(e.ty.speed * CFG.speed / 100); e.pos.addScaledVector(e.vel, dt);
+    e.vel.copy(_fq).multiplyScalar(e.ty.speed * CFG.speed / 100); e.pos.addScaledVector(e.vel, dt); e.pos.y = TERRAIN.height(e.pos.x, e.pos.z);
   }
   /* per frame: glyphs, altitude lines / poles, labels, cross-outs, appear / retreat animations */
   draw() {
@@ -130,10 +130,11 @@ class Force {
         a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
       } else if (e.state === 'live') setLabel(e.label, e.name, this.css, false);   // the whole name (a no-op once set)
       if (e.ground) {
-        drawMarker(g, e.pos.x, e.pos.z, e.heading, e.ty.scale, c, a, 2);
-        if (CFG.dropLines) LINES.add(e.pos.x, 0.15, e.pos.z, e.pos.x, POLE_H * grow, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
-        GLOW.dot(_fx.set(e.pos.x, 1.2, e.pos.z), 1.1, c, 0.9 * a);
-        e.label.position.set(e.pos.x, CFG.dropLines ? POLE_H * grow : 3, e.pos.z);
+        const y = e.pos.y;
+        drawMarker(g, e.pos.x, y, e.pos.z, e.heading, e.ty.scale, c, a, 2);
+        if (CFG.dropLines) LINES.add(e.pos.x, y + 0.15, e.pos.z, e.pos.x, y + POLE_H * grow, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
+        GLOW.dot(_fx.set(e.pos.x, y + 1.2, e.pos.z), 1.1, c, 0.9 * a);
+        e.label.position.set(e.pos.x, y + (CFG.dropLines ? POLE_H * grow : 3), e.pos.z);
       } else {
         drawGlyph(g, e.pos, e.plane.dir, e.plane.up, e.ty.scale, c, a, 2);
         if (CFG.dropLines) LINES.drop(e.pos, c, 0.8 * a, 2.2, grow);
@@ -142,13 +143,13 @@ class Force {
       e.label.visible = CFG.labels && e.state !== 'fade' && shown;
       if (e.state === 'struck') {
         const r = Math.max(2.5, CAM.distTo(e.pos) * 0.022), blink = e.t < 0.6 ? (Math.floor(e.t * 10) % 2 ? 0.4 : 1) : 1;
-        LINES.cross(e.ground ? _fx.set(e.pos.x, 2.5, e.pos.z) : e.pos, r, c, blink);
+        LINES.cross(e.ground ? _fx.set(e.pos.x, e.pos.y + 2.5, e.pos.z) : e.pos, r, c, blink);
       }
     }
   }
   /* appearing: a radar ping — a ring (flat on the ground / facing the camera for aircraft) and a smaller echo */
   appear(e, c) {
-    const u = e.t / APPEAR_T, p = e.ground ? _fx.set(e.pos.x, 0.2, e.pos.z) : e.pos;
+    const u = e.t / APPEAR_T, p = e.ground ? _fx.set(e.pos.x, e.pos.y + 0.2, e.pos.z) : e.pos;
     LINES.circle(p, 2 + 14 * easeOut(u), c, (1 - u) * 0.9, e.ground, 1.8, 28);
     if (e.t > 0.25) { const v = (e.t - 0.25) / (APPEAR_T - 0.25); LINES.circle(p, 1 + 9 * easeOut(v), c, (1 - v) * 0.6, e.ground, 1.4, 22); }
   }
