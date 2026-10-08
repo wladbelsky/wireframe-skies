@@ -1,0 +1,11 @@
+{
+  "name": "wireframe-skies-tests",
+  "private": true,
+  "description": "Automated tests for the Wireframe Skies wallpaper (the wallpaper itself has no build step)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
