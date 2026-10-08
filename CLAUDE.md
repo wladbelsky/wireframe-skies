@@ -29,7 +29,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
 | `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
-| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen`, focus on a critically damped spring `smoothDamp` / `FOCUS_T`, targets only move the slow `aux` point, `right` / `upv` screen axes) |
+| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, targets only move the slow `aux` point, `right` / `upv` screen axes) |
 | `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
 | `js/properties.js` | **generated** from `project.json` — do not edit by hand |
 | `js/settings.js` | browser-only settings drawer, demo beat, audio-file player (returns early inside WE) |
@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=25`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=28`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -83,7 +83,13 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - `Plane`: kinematic — `dir` turns toward the commanded direction at `turnRate × rateMul` (slower until rolled in),
   `up` rolls toward the lift direction (turn + 1 g). `steer` keeps it `FLOOR` above the ground under it and 2.5 s
   ahead (`groundAhead`, full-rate pull-up) and below `CEIL`. Altitudes for AI / maneuver checks are `p.agl`
-  (above ground level); `ROUTE` stays `ROUTE_CLEAR` above the terrain under / 600 units ahead of it (climbs faster). Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
+  (above ground level); `ROUTE` stays `ROUTE_CLEAR` above the terrain under / 600 units ahead of it (climbs faster).
+- **Smooth steering (no twitching):** callers may change their wish abruptly (new target, thresholds) — `steer` slerps a
+  smoothed command `cmd` toward it (`CMD_T`), eases the rate multiplier (`rm`), rolls with inertia (`rollV`, `ROLL_K`,
+  `ROLL_ACC`; a roll that must go nearly all the way round keeps its direction) and banks only as much as the needed
+  turn rate asks for (`TURN_TAU`). Dives are limited to the height to spare over 2.5 s (soft floor) before the hard
+  pull-up (`low`, with hysteresis) is needed. Maneuver segments ease their rates in / out (`SEG_RAMP`).
+  `steering.spec.js` counts bank wobbles (the old steering: hundreds in 2 min of combat). Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
   `steer`; one heading for the ground is cut short. New maneuver: an entry in `MANEUVERS` with `need(plane, R)`.
 - `ROUTE` moves the formation across the map (gentle turns, altitude changes); in combat it slows down (the battle
   area drifts forward); after the mop-up `SQUAD.rejoin` restarts it from the flight's centroid.
@@ -97,6 +103,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Plane modes: `form` (slot flying) · `engage` (has `target`, attack run) · `reposition` (after a shot / break,
   maneuvers) · `rejoin` (back to the slot; becomes `form` within 25 units).
   `target` ↔ `e.chasers` must always match: drop a target only through `SQUAD.release(p)`.
+- **No orbiting:** a target inside the turn circle can't be aimed at — after `NOAIM_T` s near it without a firing
+  solution the plane extends (`p.extendT`: away from it, climbing to `ATTACK_AGL`), then turns in again.
 - Shooting: one missile per low beat (round robin among ready planes), guns on mid beats; a plane that has been
   ready for 1.6 s shoots anyway (quiet music). Friendly missiles always reach a live target; hostile ones
   (`ENEMIES.onBeat`, mid / high beats, rate-limited) always lose lock, and the target breaks and pops flares.

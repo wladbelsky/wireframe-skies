@@ -31,9 +31,16 @@ const CAM = {
     this.shotT = CFG.shotLen * rand(0.8, 1.2); this.drift = 0;
     this.pickHero();
   },
+  /* a new hero: another plane, preferably one that is attacking and close to where the camera looks now (a short
+     glide to it, not a sweep across the map) */
   pickHero() {
-    const busy = SQUAD.planes.filter(p => p.mode === 'engage' && p !== this.hero);
-    this.hero = busy.length ? pick(busy) : pick(SQUAD.planes);
+    let best = null, bs = Infinity;
+    for (const p of SQUAD.planes) {
+      if (p === this.hero && SQUAD.planes.length > 1) continue;
+      const s = p.pos.distanceTo(this.focus) + (p.mode === 'engage' ? 0 : 250) + Math.random() * 60;
+      if (s < bs) { bs = s; best = p; }
+    }
+    this.hero = best;
   },
   target() {
     if (CFG.camMode === 'fixed') return { az: CFG.fixedAz, el: CFG.fixedElev, dist: 150 };

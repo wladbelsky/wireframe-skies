@@ -12,7 +12,8 @@
 const CRUISE = 24;
 const SAME_SEA_T = 60, SAME_LAND_T = 150, SCOUT_R = 3000;
 const ROUTE_CLEAR = 35;   // the route's minimum height above the terrain under / ahead of it
-const MOPUP_T = 14, MOPUP_R = 450;   // s of mop-up after the music; how far from the flight an on-screen enemy still counts   // s over open sea / land before the route heads for a coast; look-out range
+const MOPUP_T = 14, MOPUP_R = 450;
+const NOAIM_T = 3, ATTACK_AGL = 75;   // s near a target without a firing solution before extending; height to come back in at   // s of mop-up after the music; how far from the flight an on-screen enemy still counts   // s over open sea / land before the route heads for a coast; look-out range
 const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first)
   finger:  [[0, 0, 0], [-9, 0, -7], [9, 0, -7], [18, 0, -14]],
   diamond: [[0, 0, 0], [-9, -1, -7], [9, -1, -7], [0, -2, -14]],
@@ -184,13 +185,18 @@ const SQUAD = {
     if (p.mode === 'engage' && !p.target) { p.mode = 'reposition'; p.modeT = rand(0.5, 1.5); }
     if (p.mode === 'reposition' && p.modeT <= 0 && !p.maneuvering) {
       const t = this.firing ? this.pickTarget(p) : null;
-      if (t) { p.target = t; t.chasers++; p.mode = 'engage'; p.modeT = 25; p.ready = 0; }
+      if (t) { p.target = t; t.chasers++; p.mode = 'engage'; p.modeT = 25; p.ready = 0; p.noAim = 0; p.extendT = 0; }
       else p.modeT = rand(1, 2);
     }
     if (p.mode === 'engage' && p.modeT <= 0) { this.release(p); p.mode = 'reposition'; p.modeT = 1; }   // taking too long
     // steering
     const t = p.target;
-    if (p.mode === 'engage' && t) {
+    if (p.mode === 'engage' && t && p.extendT > 0) {
+      // too close to bring the nose onto it (it sits inside the turn): fly out, climb to attack height, turn in again
+      p.extendT -= dt; p.ready = 0;
+      _D.subVectors(p.pos, t.pos).setY(0); if (_D.lengthSq() < 1) _D.copy(p.dir).setY(0); _D.normalize();
+      _D.y = clamp((ATTACK_AGL - p.agl) * 0.01, -0.3, 0.4); _D.normalize();
+    } else if (p.mode === 'engage' && t) {
       const d = p.pos.distanceTo(t.pos);
       _lp.copy(t.pos); if (t.vel) _lp.addScaledVector(t.vel, Math.min(2, d / 70));
       if (t.ground) {
@@ -203,6 +209,8 @@ const SQUAD = {
       const aim = p.dir.dot(_tg.subVectors(t.pos, p.pos).normalize());
       const inRange = d > 35 && d < (t.ground ? 190 : 210) && aim > 0.86;
       p.ready = inRange && p.cd <= 0 ? p.ready + dt : 0;
+      p.noAim = inRange || d > 260 ? 0 : (p.noAim || 0) + dt;   // circling close without a shot → extend
+      if (p.noAim > NOAIM_T) { p.noAim = 0; p.extendT = rand(3, 4.5); }
       if (this.firing && p.ready > (this.mopT > 0 ? 0.7 : 1.6)) this.shoot(p);   // no beats (quiet music / mop-up): shoot anyway
       if (d < 26 || (t.ground && d < 45 && p.agl < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
     } else if (!p.maneuvering) {
