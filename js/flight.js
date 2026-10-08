@@ -16,8 +16,6 @@ class Plane {
     this.man = null;   // { segs: [{ d, p, q }], i, t, name }
   }
   get maneuvering() { return !!this.man; }
-  get pitch() { return Math.asin(clamp(this.dir.y, -1, 1)); }
-  get heading() { return Math.atan2(this.dir.x, this.dir.z); }   // 0 = +z, π/2 = +x
   place(p, heading, pitch) {
     this.pos.copy(p); this.dir.set(Math.sin(heading) * Math.cos(pitch || 0), Math.sin(pitch || 0), Math.cos(heading) * Math.cos(pitch || 0));
     this.up.set(0, 1, 0); this.orthoUp();

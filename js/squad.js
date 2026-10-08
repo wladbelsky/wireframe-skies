@@ -4,7 +4,8 @@
    its formation slot relative to ROUTE. In combat (AUD.armed) ROUTE slows down (the battle area drifts forward) and
    every plane fights on its own: pick a target, attack run, shoot (on the beat), reposition with a maneuver, evade
    hostile missiles with a break turn and flares. When combat ends ROUTE jumps to the flight and they rejoin.
-   Plane modes: form | engage | reposition | evade. */
+   Plane modes: form (slot flying) | engage (attack run on p.target) | reposition (after a shot / a break, maneuvers) |
+   rejoin (back to the slot after a fight). Evading a missile is a break turn + flares, then reposition. */
 const CRUISE = 24;
 const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first)
   finger:  [[0, 0, 0], [-9, 0, -7], [9, 0, -7], [18, 0, -14]],
@@ -32,7 +33,7 @@ const ROUTE = {
   shift(dx, dz) { this.pos.x -= dx; this.pos.z -= dz; }
 };
 
-const _sl = new V3(), _tg = new V3(), _D = new V3(), _c = new V3(), _lp = new V3(), _fp = new V3();
+const _sl = new V3(), _tg = new V3(), _D = new V3(), _c = new V3(), _lp = new V3(), _fp = new V3(), _gv = new V3();
 const SQUAD = {
   planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0,
   build(scene) {
@@ -50,7 +51,6 @@ const SQUAD = {
   relabel() { this.planes.forEach((p, i) => setLabel(p.label, `${CFG.squad} ${i + 1}`, cssOf(PAL.friend))); },
   recolor() { for (const p of this.planes) p.trail.recolor(PAL.friend); this.relabel(); },
   centroid(out) { out.set(0, 0, 0); for (const p of this.planes) out.add(p.pos); return out.multiplyScalar(1 / this.planes.length); },
-  get armed() { return AUD.armed; },
 
   update(dt) {
     const armed = AUD.armed;
@@ -168,9 +168,10 @@ const SQUAD = {
   },
   shoot(p) {
     const t = p.target; if (!t || !t.alive) return false;
-    p.cd = rand(1.4, 2.4); p.ready = 0; t.incoming++; this.shots++;
     _fp.copy(p.pos).addScaledVector(p.dir, 3).addScaledVector(p.up, -0.6);
-    MISSILES.fire({ p: _fp, d: p.dir, speed: p.speed + 6, target: t, hit: true, onHit: () => { t.incoming = Math.max(0, t.incoming - 1); ENEMIES.damage(t, 1); } });
+    const m = MISSILES.fire({ p: _fp, d: p.dir, speed: p.speed + 6, target: t, hit: true, onHit: () => { t.incoming = Math.max(0, t.incoming - 1); ENEMIES.damage(t, 1); } });
+    if (!m) { p.cd = 0.5; return false; }   // every missile slot busy: try again in a moment
+    p.cd = rand(1.4, 2.4); p.ready = 0; t.incoming++; this.shots++;
     GLOW.spawn(_fp, { c: PAL.missile, s: 3, life: 0.25 });
     this.release(p); this.afterShot(p);
     return true;
@@ -181,7 +182,7 @@ const SQUAD = {
     _tg.subVectors(t.pos, p.pos).normalize(); if (p.dir.dot(_tg) < 0.95) return;
     for (let i = 0; i < 4; i++) {
       _fp.copy(p.pos).addScaledVector(p.dir, 2.5 + i * 2.5);
-      TRACERS.spawn(_fp, _tg.clone().add(new V3(rand(-0.03, 0.03), rand(-0.03, 0.03), rand(-0.03, 0.03))).normalize().multiplyScalar(110), Math.min(0.8, d / 110));
+      TRACERS.spawn(_fp, _gv.set(rand(-0.03, 0.03), rand(-0.03, 0.03), rand(-0.03, 0.03)).add(_tg).normalize().multiplyScalar(110), Math.min(0.8, d / 110));
     }
     if (Math.random() < 0.35) ENEMIES.damage(t, 1);
   },

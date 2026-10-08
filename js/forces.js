@@ -8,6 +8,12 @@
 const POLE_H = 18;            // ground / sea units: a vertical line from the marker up to their name
 const STRUCK_T = 1.8, FADE_T = 1.3, FAR_BEHIND = 950;
 const _fq = new V3(), _fx = new V3();
+/* nearest item (anything with .pos) of list to p, within maxD, passing filter */
+function nearestOf(list, p, maxD, filter) {
+  let best = null, bd = maxD || Infinity;
+  for (const e of list) { if (filter && !filter(e)) continue; const d = e.pos.distanceTo(p); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
 
 class Force {
   constructor(types, colorKey) { this.types = types; this.colorKey = colorKey; this.list = []; this.slots = {}; this.spawned = 0; this.kills = 0; }
@@ -29,6 +35,7 @@ class Force {
   }
   spawn(type, pos, heading, name) {
     const s = this.slot(type); if (!s) return null;
+    s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
     s.name = name || pick(s.ty.names); s.heading = heading; s.target = null;
     setLabel(s.label, s.name, cssOf(this.color), false);
@@ -131,9 +138,5 @@ class Force {
     for (const pool of Object.values(this.slots)) for (const s of pool) { s.pos.x -= dx; s.pos.z -= dz; if (s.trail) s.trail.shift(dx, dz); }
   }
   /* nearest live unit of this force to p (optional filter / max distance) */
-  nearest(p, maxD, filter) {
-    let best = null, bd = maxD || Infinity;
-    for (const e of this.list) { if (!e.alive || (filter && !filter(e))) continue; const d = e.pos.distanceTo(p); if (d < bd) { bd = d; best = e; } }
-    return best;
-  }
+  nearest(p, maxD, filter) { return nearestOf(this.list, p, maxD, e => e.alive && (!filter || filter(e))); }
 }

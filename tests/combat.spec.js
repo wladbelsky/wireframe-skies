@@ -64,3 +64,28 @@ test('enemy density 0: no enemies; enemies-fire off: no hostile missiles', async
   expect(r.spawned).toBeGreaterThan(5);
   expect(r.hostile).toBe(0);
 });
+
+test('a missile never follows a recycled enemy slot; a full missile pool leaves no phantom "incoming"', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const out = {};
+    const p = SQUAD.planes[0];
+    const e = ENEMIES.spawn('fighter', p.pos.clone().add(new THREE.Vector3(0, 0, 300)), 0);
+    let hits = 0;
+    MISSILES.fire({ p: p.pos, d: p.dir, speed: 30, target: e, hit: true, onHit: () => { hits++; } });
+    ENEMIES.vanish(e); __t.sim(FADE_T + 0.2);                       // freed …
+    const again = ENEMIES.spawn('fighter', p.pos.clone().add(new THREE.Vector3(0, 0, -300)), 0);   // … and reused
+    out.reused = again === e;
+    __t.sim(12); out.hits = hits;
+    // missile pool exhausted: shooting fails cleanly
+    for (const m of MISSILES.pool) { m.on = true; m.age = 0; m.lock = 99; m.hit = false; m.target = null; }
+    const t = ENEMIES.spawn('frigate', p.pos.clone().setY(0), 0) || again;
+    p.target = t; t.chasers++; p.mode = 'engage'; t.incoming = 0;
+    out.shot = SQUAD.shoot(p); out.incoming = t.incoming;
+    return out;
+  });
+  expect(r.reused).toBe(true);
+  expect(r.hits, 'the old missile ignored the new unit in the slot').toBe(0);
+  expect(r.shot).toBe(false);
+  expect(r.incoming).toBe(0);
+});

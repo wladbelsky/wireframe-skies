@@ -92,7 +92,6 @@ const LINES = {
     this.CA[j] = c.r * a0; this.CA[j + 1] = c.g * a0; this.CA[j + 2] = c.b * a0; this.CB[j] = c.r * a1; this.CB[j + 1] = c.g * a1; this.CB[j + 2] = c.b * a1;
     this.W[i] = w || LINE_W;
   },
-  addV(a, b, c, a0, a1, w) { this.add(a.x, a.y, a.z, b.x, b.y, b.z, c, a0, a1, w); },
   /* altitude line from p down to the ground with a small cross there */
   drop(p, c, a, w) {
     this.add(p.x, p.y, p.z, p.x, 0, p.z, c, a * 0.8, a * 0.35, w || 2.2);
@@ -159,7 +158,6 @@ const GLOW = {
     }
   },
   drawParts() { for (const q of this.parts) if (q.age < q.life) this.dot(q.p, q.s, q.c, q.a * (1 - q.age / q.life)); },
-  live() { let k = 0; for (const q of this.parts) if (q.age < q.life) k++; return k; },
   end(camera, height) {
     this.uniforms.uScale.value = height / (2 * Math.tan(camera.fov * DEG / 2));
     const g = this.mesh.geometry; g.setDrawRange(0, this.n);
@@ -201,11 +199,12 @@ const MISSILES = {
   pool: [], N: 60,
   build() { for (let i = 0; i < this.N; i++) this.pool.push({ on: false, p: new V3(), d: new V3(), speed: 0, age: 0, hist: new Float32Array(MSL_HIST * 3), hn: 0, hacc: 0, target: null, hit: false, onHit: null, enemy: false, c: PAL.missile, lock: 0, dying: 0 }); },
   get live() { let k = 0; for (const m of this.pool) if (m.on || m.dying > 0) k++; return k; },
-  /* o: { p, d (unit), speed, target ({ pos, alive }), hit: true/false, onHit(m), enemy, c (colour) } */
+  /* o: { p, d (unit), speed, target ({ pos, alive, gen? }), hit: true/false, onHit(m), enemy, c (colour) }; null when the pool is full.
+     A pooled target (enemy slot) carries gen: the missile follows only that spawn, not whatever reuses the slot later. */
   fire(o) {
     const m = this.pool.find(x => !x.on && x.dying <= 0); if (!m) return null;
     m.on = true; m.p.copy(o.p); m.d.copy(o.d).normalize(); m.speed = o.speed || 30; m.age = 0; m.target = o.target; m.hit = !!o.hit;
-    m.onHit = o.onHit || null; m.enemy = !!o.enemy; m.c = o.c || (o.enemy ? PAL.enemy : PAL.missile); m.lock = o.hit ? 99 : rand(1.2, 2.2); m.hn = 1; m.hacc = 0; m.dying = 0;
+    m.onHit = o.onHit || null; m.gen = o.target ? o.target.gen : undefined; m.enemy = !!o.enemy; m.c = o.c || (o.enemy ? PAL.enemy : PAL.missile); m.lock = o.hit ? 99 : rand(1.2, 2.2); m.hn = 1; m.hacc = 0; m.dying = 0;
     m.hist[0] = m.p.x; m.hist[1] = m.p.y; m.hist[2] = m.p.z; m.maxSpeed = o.enemy ? 52 : 68; m.turn = o.enemy ? 1.6 : 3.2;
     return m;
   },
@@ -213,7 +212,7 @@ const MISSILES = {
     for (const m of this.pool) {
       if (!m.on) { if (m.dying > 0) m.dying -= dt; continue; }
       m.age += dt; m.speed = Math.min(m.maxSpeed, m.speed + 45 * dt);
-      const t = m.target, homing = t && t.alive && m.age < m.lock;
+      const t = m.target, homing = t && t.alive && t.gen === m.gen && m.age < m.lock;
       if (homing) {
         _mt.copy(t.pos); if (t.vel) _mt.addScaledVector(t.vel, Math.min(1.2, m.p.distanceTo(t.pos) / m.speed) * 0.8);
         _mv.subVectors(_mt, m.p); const dist = _mv.length();
@@ -246,7 +245,6 @@ const MISSILES = {
     if (onTarget && m.onHit) m.onHit(m);
     else BURSTS.spawn(m.p, m.c, 1.2, false);
   },
-  clear() { for (const m of this.pool) { m.on = false; m.dying = 0; } },
   shift(dx, dz) { for (const m of this.pool) { m.p.x -= dx; m.p.z -= dz; for (let i = 0; i < MSL_HIST * 3; i += 3) { m.hist[i] -= dx; m.hist[i + 2] -= dz; } } }
 };
 

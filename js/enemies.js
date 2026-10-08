@@ -74,11 +74,7 @@ class EnemyForce extends Force {
     }
     this.steerAir(e, _q, dt, e.mode === 'dogfight' ? 1.5 : 1);
   }
-  nearestFriend(p, maxD) {
-    let best = null, bd = maxD || Infinity;
-    for (const f of SQUAD.planes) { const d = f.pos.distanceTo(p); if (d < bd) { bd = d; best = f; } }
-    return best;
-  }
+  nearestFriend(p, maxD) { return nearestOf(SQUAD.planes, p, maxD); }
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
   onBeat(band) {
     if (!CFG.enemyFire) return;

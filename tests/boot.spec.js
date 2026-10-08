@@ -38,3 +38,15 @@ test('properties apply: squadron name, colours, camera mode', async ({ wp }) => 
   expect(r.mode).toBe('fixed');
   expect(r.az).toBe(90);
 });
+
+test('label textures of names / colours no longer shown are freed', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const n0 = LABEL_CACHE.size;
+    for (const name of ['A', 'AB', 'ABC', 'ABCD', 'ABCDE', 'GHOST']) __t.props({ squadname: name });
+    for (let i = 0; i < 20; i++) __t.props({ friendcolor: `${i / 20} 1 0.5` });
+    return { n0, n1: LABEL_CACHE.size, shown: SQUAD.planes.every(p => LABEL_CACHE.get(p.label.material.userData.key) === p.label.material) };
+  });
+  expect(r.n1).toBeLessThanOrEqual(r.n0);
+  expect(r.shown).toBe(true);
+});

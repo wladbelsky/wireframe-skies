@@ -78,8 +78,8 @@ class AllyForce extends Force {
     const [s, t] = pick(cands);
     if (s.plane) { _a.copy(s.pos).addScaledVector(s.plane.dir, 2); _ad.copy(s.plane.dir); }
     else { _a.set(s.pos.x, 3, s.pos.z); _ad.subVectors(t.pos, _a).normalize(); _ad.y = Math.max(_ad.y, 0.5); _ad.normalize(); }
+    if (!MISSILES.fire({ p: _a, d: _ad, speed: s.plane ? s.plane.speed + 6 : 14, target: t, hit: true, c: PAL.ally, onHit: () => { t.incoming = Math.max(0, t.incoming - 1); ENEMIES.damage(t, 1); } })) return;
     t.incoming++;
-    MISSILES.fire({ p: _a, d: _ad, speed: s.plane ? s.plane.speed + 6 : 14, target: t, hit: true, c: PAL.ally, onHit: () => { t.incoming = Math.max(0, t.incoming - 1); ENEMIES.damage(t, 1); } });
     GLOW.spawn(_a, { c: PAL.ally, s: 3, life: 0.3 });
     s.cd = rand(5, 9); this.fireT = rand(1.5, 3); this.shots++;
   }

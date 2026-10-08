@@ -56,8 +56,8 @@ const TEX = {
 };
 
 /* ===== Text labels =====
-   One texture per (text, colour, struck) — cached, shared, never disposed (the set of labels is small and fixed:
-   callsigns and type names). Sprites with sizeAttenuation off keep a constant size on screen.
+   One texture per (text, colour, struck), shared through LABEL_CACHE and reference-counted by setLabel: when no sprite
+   shows a label any more (a colour or the squadron name changed) its texture is freed, so edits never pile up. Sprites with sizeAttenuation off keep a constant size on screen.
    The look of the replay: wide-spaced, light, a near-white core with a glow in the side's colour. */
 const LABEL_FONT = 26, LABEL_H = 44, LABEL_PAD = 12;
 const LABEL_FACE = `400 ${LABEL_FONT}px "Bahnschrift", "Eurostile", "DIN Alternate", "Segoe UI", Arial, sans-serif`;
@@ -77,7 +77,7 @@ function labelMat(text, color, struck) {
   if (struck) { g.strokeStyle = core; g.shadowColor = color; g.shadowBlur = 8; g.lineWidth = 3; g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y); g.stroke(); }
   const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false });
-  m.userData.shared = true; m.userData.aspect = w / LABEL_H;
+  m.userData.shared = true; m.userData.aspect = w / LABEL_H; m.userData.key = key; m.userData.refs = 0;
   LABEL_CACHE.set(key, m);
   return m;
 }
@@ -85,7 +85,9 @@ function labelMat(text, color, struck) {
 const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the glow included)
 function makeLabel() { const s = new THREE.Sprite(); s.center.set(0.02, 0.3); s.renderOrder = 10; return s; }
 function setLabel(s, text, color, struck) {
-  const m = labelMat(text, color, struck); if (s.material === m) return;
+  const m = labelMat(text, color, struck), old = s.material; if (old === m) return;
+  m.userData.refs++;
+  if (old.userData.key && --old.userData.refs <= 0) { LABEL_CACHE.delete(old.userData.key); old.map.dispose(); old.dispose(); }
   s.material = m; s.scale.set(LABEL_SCALE * m.userData.aspect, LABEL_SCALE, 1);
 }
 
