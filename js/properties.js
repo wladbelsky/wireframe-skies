@@ -1,0 +1,149 @@
+'use strict';
+/* Generated from project.json by tools/gen_properties.py — do not edit by hand */
+const WE_PROPERTIES = {
+ "schemecolor": {
+  "order": 0,
+  "text": "ui_browse_properties_scheme_color",
+  "type": "color",
+  "value": "0.02 0.05 0.12"
+ },
+ "cameramode": {
+  "order": 1,
+  "text": "Camera",
+  "type": "combo",
+  "value": "cinematic",
+  "options": [
+   {
+    "label": "Cinematic (changing shots)",
+    "value": "cinematic"
+   },
+   {
+    "label": "Fixed",
+    "value": "fixed"
+   }
+  ]
+ },
+ "zoom": {
+  "order": 2,
+  "text": "Camera zoom, %",
+  "type": "slider",
+  "min": 40,
+  "max": 200,
+  "value": 100
+ },
+ "shotlength": {
+  "order": 3,
+  "text": "Shot length, s",
+  "type": "slider",
+  "min": 8,
+  "max": 60,
+  "value": 22,
+  "condition": "cameramode.value == 'cinematic'"
+ },
+ "fixedazimuth": {
+  "order": 4,
+  "text": "Camera direction, ° (180 = behind)",
+  "type": "slider",
+  "min": 0,
+  "max": 360,
+  "value": 200,
+  "condition": "cameramode.value == 'fixed'"
+ },
+ "fixedelevation": {
+  "order": 5,
+  "text": "Camera height, °",
+  "type": "slider",
+  "min": 5,
+  "max": 85,
+  "value": 32,
+  "condition": "cameramode.value == 'fixed'"
+ },
+ "audiosensitivity": {
+  "order": 10,
+  "text": "Audio sensitivity, %",
+  "type": "slider",
+  "min": 20,
+  "max": 300,
+  "value": 100
+ },
+ "enemydensity": {
+  "order": 11,
+  "text": "Enemy density, % (0 = none)",
+  "type": "slider",
+  "min": 0,
+  "max": 200,
+  "value": 100
+ },
+ "enemiesfire": {
+  "order": 12,
+  "text": "Enemies fire back (they always miss)",
+  "type": "bool",
+  "value": true
+ },
+ "maneuvers": {
+  "order": 13,
+  "text": "Aerobatics (0 = calm)",
+  "type": "slider",
+  "min": 0,
+  "max": 10,
+  "value": 5
+ },
+ "friendcolor": {
+  "order": 20,
+  "text": "Flight colour",
+  "type": "color",
+  "value": "0.27 1 0.47"
+ },
+ "enemycolor": {
+  "order": 21,
+  "text": "Enemy colour",
+  "type": "color",
+  "value": "1 0.29 0.23"
+ },
+ "gridcolor": {
+  "order": 22,
+  "text": "Grid & sea colour",
+  "type": "color",
+  "value": "0.17 0.44 0.82"
+ },
+ "landcolor": {
+  "order": 23,
+  "text": "Coast, contour & city colour",
+  "type": "color",
+  "value": "0.75 0.89 1"
+ },
+ "traillength": {
+  "order": 24,
+  "text": "Trail length, s (0 = off)",
+  "type": "slider",
+  "min": 0,
+  "max": 60,
+  "value": 14
+ },
+ "droplines": {
+  "order": 25,
+  "text": "Altitude lines",
+  "type": "bool",
+  "value": true
+ },
+ "labels": {
+  "order": 26,
+  "text": "Names",
+  "type": "bool",
+  "value": true
+ },
+ "squadname": {
+  "order": 30,
+  "text": "Squadron callsign",
+  "type": "textinput",
+  "value": "STRIDER"
+ },
+ "flightspeed": {
+  "order": 31,
+  "text": "Flight speed, %",
+  "type": "slider",
+  "min": 50,
+  "max": 200,
+  "value": 100
+ }
+};
