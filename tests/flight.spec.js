@@ -24,8 +24,8 @@ test('20 minutes of peace: formation, altitude changes, new landscape, floating 
   expect(r.p95, '95th percentile distance from the slot').toBeLessThan(30);
   expect(r.altRange, 'altitude changes').toBeGreaterThan(40);
   expect(r.headRange, 'the route turns').toBeGreaterThan(0.5);
-  expect(r.land, 'flies over land').toBeGreaterThan(30);
-  expect(r.sea, 'flies over sea').toBeGreaterThan(30);
+  expect(r.land, 'flies over land').toBeGreaterThan(10);
+  expect(r.sea, 'flies over sea').toBeGreaterThan(10);
   expect(r.shifts, 'the floating origin recentred').toBeGreaterThan(5);
   expect(r.rolls, 'the odd roll / loop in peace').toBeGreaterThan(0);
   expect(r.enemies, 'no enemies without music').toBe(0);

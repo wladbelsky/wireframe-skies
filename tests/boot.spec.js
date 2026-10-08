@@ -30,7 +30,7 @@ test('properties apply: squadron name, colours, camera mode', async ({ wp }) => 
     __t.props({ squadname: ' gar<l>m ', friendcolor: '0 0 1', cameramode: 'fixed', fixedazimuth: 90 });
     __t.sim(3);
     const name = [...LABEL_CACHE.entries()].find(([, m]) => m === SQUAD.planes[2].label.material)[0];
-    return { name, color: SQUAD.lineMat.color.getHexString(), trail: SQUAD.planes[0].trail.color.getHexString(), mode: CFG.camMode, az: CAM.target().az };
+    return { name, color: PAL.friend.getHexString(), trail: SQUAD.planes[0].trail.color.getHexString(), mode: CFG.camMode, az: CAM.target().az };
   });
   expect(r.name.split('|')[0]).toBe('GARLM 3');
   expect(r.color).toBe('0000ff');

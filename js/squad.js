@@ -36,21 +36,19 @@ const _sl = new V3(), _tg = new V3(), _D = new V3(), _c = new V3(), _lp = new V3
 const SQUAD = {
   planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0,
   build(scene) {
-    this.lineMat = lineMaterial(PAL.friend, 1); this.fillMat = fillMaterial(PAL.friend, 0.13);
     for (let i = 0; i < 4; i++) {
       const p = new Plane({ speed: CRUISE, turnRate: 0.5, rollRate: 2.6 });
       p.idx = i; p.alive = true; p.mode = 'form'; p.target = null; p.modeT = 0; p.cd = rand(0, 1); p.ready = 0; p.evadeAt = -1; p.flareT = 0;
       p.vel = new V3();
-      p.obj.add(buildModel('jet', this.lineMat, this.fillMat, 1.7));
       p.label = makeLabel(); scene.add(p.label);
       p.trail = new Trail(scene, PAL.friend);
       ROUTE.slot(FORMATIONS.finger[i], _sl); p.place(_sl, ROUTE.heading, 0); p.trail.reset(p.pos);
-      scene.add(p.obj); this.planes.push(p);
+      this.planes.push(p);
     }
     this.relabel();
   },
   relabel() { this.planes.forEach((p, i) => setLabel(p.label, `${CFG.squad} ${i + 1}`, cssOf(PAL.friend))); },
-  recolor() { this.lineMat.color.copy(PAL.friend); this.fillMat.color.copy(PAL.friend); for (const p of this.planes) p.trail.recolor(PAL.friend); this.relabel(); },
+  recolor() { for (const p of this.planes) p.trail.recolor(PAL.friend); this.relabel(); },
   centroid(out) { out.set(0, 0, 0); for (const p of this.planes) out.add(p.pos); return out.multiplyScalar(1 / this.planes.length); },
   get armed() { return AUD.armed; },
 
@@ -63,7 +61,7 @@ const SQUAD = {
     if (!armed) this.peace(dt);
     for (const p of this.planes) {
       if (armed && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
-      p.steer(_D, dt); p.move(dt); p.sync();
+      p.steer(_D, dt); p.move(dt);
       p.vel.copy(p.dir).multiplyScalar(p.speed);
       p.trail.update(dt, p.pos, true);
       this.flares(p, dt);
@@ -204,12 +202,13 @@ const SQUAD = {
     if (Math.floor(before / 0.12) !== Math.floor(p.flareT / 0.12))
       for (const s of [-1, 1]) GLOW.spawn(p.pos, { v: _tg.copy(p.dir).multiplyScalar(-6).addScaledVector(p.up, -4).addScaledVector(_c.crossVectors(p.dir, p.up), s * 7), c: PAL.flare, s: 1.3, life: 1.5, drag: 1.2, grav: 6 });
   },
-  /* per frame: altitude lines and labels */
+  /* per frame: glyphs, altitude lines and labels */
   draw() {
     for (const p of this.planes) {
-      if (CFG.dropLines) LINES.drop(p.pos, PAL.friend, 0.9);
-      p.label.visible = CFG.labels; p.label.position.copy(p.pos).y += 2.2;
+      drawGlyph(GLYPHS.arrow, p.pos, p.dir, p.up, 2.2, PAL.friend, 1, 2.6);
+      if (CFG.dropLines) LINES.drop(p.pos, PAL.friend, 0.95, 3.2);
+      p.label.visible = CFG.labels; p.label.position.copy(p.pos).y += 2.5;
     }
   },
-  shift(dx, dz) { for (const p of this.planes) { p.pos.x -= dx; p.pos.z -= dz; p.sync(); p.trail.shift(dx, dz); } }
+  shift(dx, dz) { for (const p of this.planes) { p.pos.x -= dx; p.pos.z -= dz; p.trail.shift(dx, dz); } }
 };

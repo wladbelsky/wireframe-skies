@@ -3,13 +3,15 @@
 ![preview](preview.jpg)
 
 A flight replay in the style of a mission-results screen: a dark void, a perspective grid and a wireframe map —
-coastlines, contour lines, city blocks — with a four-ship flight drawn as glowing line art, each aircraft with its
-callsign, an altitude line down to the ground and a trail of where it has been. No result tables, no HUD: just the
-replay.
+coastlines, contour lines, city blocks — and schematic, glowing symbols: the four-ship flight as green arrowheads with
+their callsigns, altitude lines down to the ground and trails; ground units and ships as markers on the map with a pole
+up to their name — green for the flight, blue for allies, red for the enemy. No result tables, no HUD: just the replay.
 
 - **Without music** the flight (`STRIDER 1…4` by default) cruises across the map in formation, changing altitude and
   heading, switching formations (finger four, diamond, echelon, line abreast, trail) and now and then rolling or
   looping. The landscape changes as it flies: open sea, coasts, mountains, cities.
+- **Allies** pass by: fleets (AEGIS, DESTROYER, now and then a CARRIER) at sea, armour columns (TANK, APC, SAM, HQ)
+  on land, fighter pairs with their own callsigns, an AWACS high above. In a fight they fire at the enemy too.
 - **With music** enemies appear ahead — fighters, bombers, attack jets and helicopters in the air, SAM sites, AA guns,
   tanks and radars on land, frigates and destroyers at sea. The flight breaks, picks targets, fires missiles on the
   beat (guns on the snare), then repositions with loops, Immelmanns, split-S, barrel rolls and break turns.
@@ -35,7 +37,8 @@ Wallpaper Engine → **Open from File** → `project.json` from this folder.
 | Enemy density, % | how many enemies a fight brings (0 = none, the flight just flies) |
 | Enemies fire back | hostile missiles and AA fire (always missing) |
 | Aerobatics | how often the flight shows off (0 = calm, also fewer maneuvers in combat) |
-| Flight / enemy / grid & sea / coast, contour & city colour | the palette |
+| Allied ships, ground units and aircraft | allies on the map (off: they fade away) |
+| Flight / enemy / ally / grid & sea / coast, contour & city colour | the palette |
 | Trail length, s | 0 = no trails |
 | Altitude lines, Names | the vertical lines to the ground and the callsigns / target names |
 | Squadron callsign | the planes are called `<callsign> 1…4` (letters, digits, spaces, up to 14 characters) |

@@ -56,7 +56,7 @@
       H.minY = Math.min(H.minY, p.pos.y);
     }
     if (!AUD.armed && SQUAD.planes.some(p => p.mode === 'engage')) v.push('engaging out of combat');
-    for (const e of ENEMIES.list) {
+    for (const e of [...ENEMIES.list, ...ALLIES.list]) {
       if (!e.inUse) v.push(`freed ${e.type} still listed`);
       if (!H.ENEMY_STATES.has(e.state)) v.push(`${e.type} unknown state ${e.state}`);
       if (e.alive !== (e.state === 'live')) v.push(`${e.type} alive / state mismatch`);
@@ -69,7 +69,9 @@
     const chasers = new Map(); for (const p of SQUAD.planes) if (p.target) chasers.set(p.target, (chasers.get(p.target) || 0) + 1);
     for (const e of ENEMIES.list) if ((chasers.get(e) || 0) !== e.chasers) v.push(`${e.type} chasers ${e.chasers} ≠ ${chasers.get(e) || 0}`);
     if (ENEMIES.alive > Math.max(ENEMIES.cap, 4) + 4) v.push(`too many enemies alive: ${ENEMIES.alive}`);
-    for (const [k, pool] of Object.entries(ENEMIES.slots)) if (pool.length > ENEMY_TYPES[k].max) v.push(`${k} pool ${pool.length}`);
+    for (const F of [ENEMIES, ALLIES]) for (const [k, pool] of Object.entries(F.slots)) if (pool.length > F.types[k].max) v.push(`${k} pool ${pool.length}`);
+    if (ALLIES.alive > ALLY_CAP) v.push(`too many allies: ${ALLIES.alive}`);
+    if (ALLIES.list.some(e => e.state !== 'live' && e.state !== 'fade')) v.push('an ally was struck');
     for (const m of MISSILES.pool) if (m.on && (!fin(m.p) || far(m.p))) v.push('missile out of bounds');
     if (far(ROUTE.pos) || far(CAM.focus)) v.push('route / camera far from the origin');
     if (!Number.isFinite(camera.position.x + camera.position.y + camera.position.z)) v.push('camera non-finite');
@@ -98,7 +100,7 @@
     AUD.soundStart = rt - 10; AUD.lastActive = rt; AUD.combat = true; AUD.holdUntil = 0;
   };
   H.fightOff = () => { delete AUD.active; AUD.lastActive = rt - 100; AUD.soundStart = -1; };
-  H.stats = () => ({ T, armed: AUD.armed, fighting: AUD.fighting, enemies: ENEMIES.list.length, alive: ENEMIES.alive, kills: ENEMIES.kills,
+  H.stats = () => ({ T, armed: AUD.armed, fighting: AUD.fighting, enemies: ENEMIES.list.length, alive: ENEMIES.alive, kills: ENEMIES.kills, allies: ALLIES.list.length, allyShots: ALLIES.shots,
     spawned: ENEMIES.spawned, shots: SQUAD.shots, hostile: ENEMIES.missiles, modes: SQUAD.planes.map(p => p.mode), shifts: WORLD.shifts });
 
   /* ---- rendering ---- */
@@ -118,13 +120,12 @@
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight };
   };
   /* Geometry leaks: every geometry reachable at a check (scene + model caches) is remembered; one that later is
-     neither reachable nor disposed was dropped without disposeTree — a leak (the wallpaper never restarts). */
+     neither reachable nor disposed was dropped without dispose() — a leak (the wallpaper never restarts). */
   H.geoSeen = new Set();
   H.geometries = () => {
     H.render();
     const g = new Set();
     scene.traverse(x => { if (x.geometry) g.add(x.geometry); });
-    for (const m of Object.values(MODEL_GEO)) { g.add(m.lines); if (m.fill) g.add(m.fill); }
     for (const x of g) H.geoSeen.add(x);
     const leaked = [...H.geoSeen].filter(x => !g.has(x) && !x.__disposed);
     return { gpu: renderer.info.memory.geometries, reach: g.size, leaked: leaked.length, leakedTypes: [...new Set(leaked.map(x => x.type))] };

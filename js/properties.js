@@ -88,6 +88,12 @@ const WE_PROPERTIES = {
   "max": 10,
   "value": 5
  },
+ "allies": {
+  "order": 14,
+  "text": "Allied ships, ground units and aircraft",
+  "type": "bool",
+  "value": true
+ },
  "friendcolor": {
   "order": 20,
   "text": "Flight colour",
@@ -98,22 +104,28 @@ const WE_PROPERTIES = {
   "order": 21,
   "text": "Enemy colour",
   "type": "color",
-  "value": "1 0.29 0.23"
+  "value": "1 0.35 0.18"
+ },
+ "allycolor": {
+  "order": 22,
+  "text": "Ally colour",
+  "type": "color",
+  "value": "0.31 0.83 1"
  },
  "gridcolor": {
-  "order": 22,
+  "order": 23,
   "text": "Grid & sea colour",
   "type": "color",
   "value": "0.17 0.44 0.82"
  },
  "landcolor": {
-  "order": 23,
+  "order": 24,
   "text": "Coast, contour & city colour",
   "type": "color",
   "value": "0.75 0.89 1"
  },
  "traillength": {
-  "order": 24,
+  "order": 25,
   "text": "Trail length, s (0 = off)",
   "type": "slider",
   "min": 0,
@@ -121,13 +133,13 @@ const WE_PROPERTIES = {
   "value": 14
  },
  "droplines": {
-  "order": 25,
+  "order": 26,
   "text": "Altitude lines",
   "type": "bool",
   "value": true
  },
  "labels": {
-  "order": 26,
+  "order": 27,
   "text": "Names",
   "type": "bool",
   "value": true

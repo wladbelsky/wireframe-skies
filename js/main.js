@@ -29,6 +29,8 @@ window.wallpaperPropertyListener = {
     if (has('traillength')) CFG.trail = p.traillength.value;
     if (has('droplines')) CFG.dropLines = p.droplines.value;
     if (has('labels')) CFG.labels = p.labels.value;
+    if (has('allies')) CFG.allies = p.allies.value;
+    if (has('allycolor')) CFG.colors.ally = rgbFromWE(p.allycolor.value);
     if (has('squadname')) CFG.squad = squadName(p.squadname.value);
     if (has('flightspeed')) CFG.speed = p.flightspeed.value;
     applySettings();
@@ -39,7 +41,7 @@ window.wallpaperPropertyListener = {
 function applySettings() {
   syncPalette();
   if (!ready) return;
-  SQUAD.recolor(); ENEMIES.recolor();
+  SQUAD.recolor(); ENEMIES.recolor(); ALLIES.recolor();
   if (CFG.camMode === 'fixed') CAM.shotT = 0;
 }
 
@@ -51,10 +53,10 @@ function init() {
   scene = new THREE.Scene(); scene.background = PAL.bg;
   camera = new THREE.PerspectiveCamera(40, 16 / 9, 1, 6000);
   TERRAIN.build(scene);
-  LINES.build(scene); GLOW.build(scene); BURSTS.build(scene); MISSILES.build(); TRACERS.build();
+  LINES.build(scene); GLOW.build(scene); BURSTS.build(); MISSILES.build(); TRACERS.build();
   ROUTE.heading = ROUTE.tgtHeading = rand(0, TAU); ROUTE.update(0);
   SQUAD.build(scene);
-  for (const sys of [ROUTE, SQUAD, ENEMIES, MISSILES, TRACERS, GLOW, BURSTS, CAM]) WORLD.onShift((dx, dz) => sys.shift(dx, dz));
+  for (const sys of [ROUTE, SQUAD, ENEMIES, ALLIES, MISSILES, TRACERS, GLOW, BURSTS, CAM]) WORLD.onShift((dx, dz) => sys.shift(dx, dz));
   CAM.nextShot();
   ready = true;
   window.addEventListener('resize', resize);
@@ -72,6 +74,7 @@ function step(dt) {
   updateArming();
   SQUAD.update(dt);
   ENEMIES.update(dt);
+  ALLIES.update(dt);
   MISSILES.update(dt);
   TRACERS.update(dt);
   GLOW.update(dt);
@@ -82,8 +85,9 @@ function step(dt) {
 /* ---- per-frame visuals (after the steps): dynamic lines, glow points, ground ---- */
 function draw() {
   LINES.begin(); GLOW.begin();
-  SQUAD.draw(); ENEMIES.draw(); MISSILES.draw(); TRACERS.draw(); GLOW.drawParts();
-  LINES.end(); GLOW.end(camera, renderer.domElement.height);
+  ALLIES.draw(); ENEMIES.draw(); SQUAD.draw(); MISSILES.draw(); TRACERS.draw(); BURSTS.draw(); GLOW.drawParts();
+  const c = renderer.domElement;
+  LINES.end(c.width, c.height, renderer.getPixelRatio()); GLOW.end(camera, c.height);
   TERRAIN.update(camera, CAM.focus);
   renderer.render(scene, camera);
 }

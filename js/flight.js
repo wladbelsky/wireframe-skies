@@ -4,9 +4,9 @@
    aircraft rolls so its lift vector points into the turn (plus a 1 g "gravity" share, so level turns are banked and
    straight flight is wings level), turning is slower while it is still rolling in. Maneuvers are scripted body rates
    (roll p, pitch q) that take over for a few seconds: loops, rolls, Immelmann, split-S, break turns.
-   Model axes: nose +Z, up +Y (Plane.sync builds the quaternion from dir / up). */
+   Glyph axes: nose +Z (dir), up +Y (up), x = up × dir. */
 const FLOOR = 16, CEIL = 260;   // hard altitude limits for every aircraft (units; ground is y = 0)
-const _ax = new V3(), _pp = new V3(), _gu = new V3(), _du = new V3(), _m4 = new THREE.Matrix4(), _xa = new V3(), _dd = new V3();
+const _ax = new V3(), _pp = new V3(), _gu = new V3(), _du = new V3(), _dd = new V3();
 
 class Plane {
   constructor(o) {
@@ -14,14 +14,13 @@ class Plane {
     this.speed = o.speed || 24; this.tgtSpeed = this.speed; this.accel = o.accel || 9;
     this.turnRate = o.turnRate || 0.5; this.rollRate = o.rollRate || 2.4; this.rateMul = 1;
     this.man = null;   // { segs: [{ d, p, q }], i, t, name }
-    this.obj = new THREE.Group();
   }
   get maneuvering() { return !!this.man; }
   get pitch() { return Math.asin(clamp(this.dir.y, -1, 1)); }
   get heading() { return Math.atan2(this.dir.x, this.dir.z); }   // 0 = +z, π/2 = +x
   place(p, heading, pitch) {
     this.pos.copy(p); this.dir.set(Math.sin(heading) * Math.cos(pitch || 0), Math.sin(pitch || 0), Math.cos(heading) * Math.cos(pitch || 0));
-    this.up.set(0, 1, 0); this.orthoUp(); this.sync();
+    this.up.set(0, 1, 0); this.orthoUp();
   }
   orthoUp() {
     this.up.addScaledVector(this.dir, -this.up.dot(this.dir));
@@ -79,12 +78,6 @@ class Plane {
     this.speed += clamp(this.tgtSpeed - this.speed, -this.accel * dt, this.accel * dt);
     this.pos.addScaledVector(this.dir, this.speed * dt);
     if (this.pos.y < FLOOR * 0.6) this.pos.y = FLOOR * 0.6;   // last resort (never seen in tests)
-  }
-  sync() {
-    _xa.crossVectors(this.up, this.dir);
-    _m4.makeBasis(_xa, this.up, this.dir);
-    this.obj.quaternion.setFromRotationMatrix(_m4);
-    this.obj.position.copy(this.pos);
   }
 }
 

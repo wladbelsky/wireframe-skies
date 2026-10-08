@@ -56,12 +56,13 @@ function onAudio(arr) {
   if (AUD.level > 0.012) { if (AUD.soundStart < 0 || !AUD.active) AUD.soundStart = RT(); AUD.lastActive = RT(); }
   else if (!AUD.active) AUD.soundStart = -1;
 }
-/* beats drive the fight: the flight's missiles / guns, enemy fire (js/squad.js, js/enemies.js) */
+/* beats drive the fight: the flight's missiles / guns, enemy and allied fire (js/squad.js, js/enemies.js, js/allies.js) */
 function onBeat(band, strength) {
   if (!AUD.fighting || paused) return;   // no frames run while paused: anything spawned would only pile up
   AUD.beats++;
   SQUAD.onBeat(band, strength);
   ENEMIES.onBeat(band, strength);
+  ALLIES.onBeat(band, strength);
 }
 /* Browser-only demo beat (controlled from the settings drawer) */
 const DEMO = { on: false, bpm: 124, level: 1, pauses: true };

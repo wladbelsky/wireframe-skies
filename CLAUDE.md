@@ -1,7 +1,8 @@
 # Wireframe Skies — Wallpaper Engine web wallpaper
 
 A mission-replay style three.js scene: a four-ship flight over a wireframe map (grid, coastlines, contour lines,
-cities) that fights enemy aircraft, SAM sites, guns and ships while system audio plays.
+cities), allied fleets / columns / aircraft passing by, and a fight with enemy aircraft, SAM sites, guns and ships
+while system audio plays. Everything is schematic: glowing glyphs, poles and names, no models.
 Runs 24/7 inside Wallpaper Engine (CEF/Chromium); also previewable in a normal browser.
 User-facing docs: `README.md` (keep it in sync when behaviour or properties change).
 Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`.
@@ -11,21 +12,23 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   (no modules). three.js **r149** is vendored as `js/three.min.js` — never edit it. Needs WebGL2 (the ground
   shader uses `uint` arithmetic).
 - `index.html` loads scripts in dependency order (later files use globals of earlier ones):
-  `core → noise → terrain → flight → models → effects → audio → squad → enemies → camera → main → properties → settings`,
+  `core → noise → terrain → flight → models → effects → audio → squad → forces → enemies → allies → camera → main → properties → settings`,
   then an inline script registers the WE audio listener (or starts the browser demo beat).
   `main.js` calls `init()` at its end, so anything `init()` needs must be defined before `main.js`.
 
 | File | Contents |
 |---|---|
-| `js/core.js` | utils (`V3`, `rand`, `clamp`, `lerp`, `smoothstep`, `pick`, `wpick`…), `CFG` defaults, `PAL` colours (`syncPalette`), `TEX.glow`, label sprites (`labelMat` cache, `makeLabel`, `setLabel`), `Seg` line-segment builder, `disposeTree` |
+| `js/core.js` | utils (`V3`, `rand`, `clamp`, `lerp`, `smoothstep`, `pick`, `wpick`…), `CFG` defaults, `PAL` colours (`syncPalette`), `TEX.glow`, label sprites (`labelMat` cache, `makeLabel`, `setLabel`), `Seg` line-segment builder |
 | `js/noise.js` | periodic value noise + the terrain fields `landField` / `mountField` / `reliefField` / `cityField` — **in JS and in GLSL (`NOISE_GLSL`)**, keep both in sync |
 | `js/terrain.js` | `WORLD` (floating origin, `onShift` handlers), `TERRAIN` (fields at a local position, `isLand` / `isSea`, the ground mesh + shader) |
 | `js/flight.js` | `Plane` flight model (`steer`, `maneuver`, `move`, `sync`), `FLOOR` / `CEIL`, `MANEUVERS` + `tryManeuver` |
-| `js/models.js` | line-art model definitions `MODEL_DEFS` (jet, heavy, heli, sam, aagun, tank, radar, frigate, destroyer), `modelGeo` cache, `buildModel`, `lineMaterial` / `fillMaterial` |
-| `js/effects.js` | `Trail`, `LINES` (per-frame segments: altitude lines, poles, cross-outs, tracers, missile smoke), `GLOW` (points: sparks, flares, missile heads), `BURSTS`, `MISSILES`, `TRACERS` |
+| `js/models.js` | schematic glyphs `GLYPHS` (arrow, heavy, awacs, heli; flat markers sam, aagun, tank, radar, hq, ship, carrier) — segment lists, `drawGlyph` (in an attitude) / `drawMarker` (flat on the ground) |
+| `js/effects.js` | `Trail`, `LINES` (per-frame glowing segments of a constant pixel width, one instanced draw call: glyphs, altitude lines, poles, cross-outs, circles, tracers, missile smoke), `GLOW` (points: sparks, flares, missile heads), `BURSTS`, `MISSILES`, `TRACERS` |
 | `js/audio.js` | `AUD`, `BANDS`, `onAudio` (beat detection), `updateArming`, `onBeat` → `SQUAD.onBeat` / `ENEMIES.onBeat`, browser `DEMO` beat, `FILE_AUDIO` |
 | `js/squad.js` | `ROUTE` (the virtual lead point), `FORMATIONS`, `SQUAD` (peace formation flying, combat AI, shooting, evasion, flares, rejoin) |
-| `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (pooled slots, waves, air / ground / sea behaviour, hostile fire, `damage` → struck → fade) |
+| `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
+| `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
+| `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
 | `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat, `right` / `upv` screen axes) |
 | `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
 | `js/properties.js` | **generated** from `project.json` — do not edit by hand |
@@ -35,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=12`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=16`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -44,8 +47,10 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - **Simulation vs drawing:** `step(dt)` runs several times per frame (≤ 50 ms sub-steps); anything that fills the
   per-frame buffers (`LINES`, `GLOW.dot`) belongs in a `draw()` method called once from `main.js draw()`.
   `GLOW.spawn` (particles) is fine from the simulation.
-- **No text overlays**: the only text is in the scene (callsigns, enemy names) — the look of the replay without
+- **No text overlays**: the only text is in the scene (callsigns, unit names) — the look of the replay without
   its result tables. The settings drawer exists only in a normal browser.
+- **Schematic, not modelled**: units are glyphs from `GLYPHS` drawn through `LINES` every frame (no meshes per unit).
+  A new unit look is a new glyph (a segment list), not a model. One colour per side: `PAL.friend` / `enemy` / `ally`.
 - **Combat state** is latched in `updateArming()` (`audio.js`, first thing in `step`): sound for `ARM_DELAY` s →
   `AUD.combat` (`AUD.armed`). When the sound stops, `AUD.holding` for `DISARM_DELAY` s (still armed, but not
   `AUD.fighting`: no new waves, no firing on the beat), then stand-down; sound for `RESUME_DELAY` s resumes it.
@@ -77,24 +82,29 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   ready for 1.6 s shoots anyway (quiet music). Friendly missiles always reach a live target; hostile ones
   (`ENEMIES.onBeat`, mid / high beats, rate-limited) always lose lock, and the target breaks and pops flares.
 
-## Enemies (`js/enemies.js`)
-- `ENEMY_TYPES[k]`: `cls` (`air` / `ground` / `sea`), `model` (key into `MODEL_DEFS`), `scale`, `hp`, `speed`, `turn`,
-  `names` (labels), `w` (wave weight), `fires` (`missile` / `guns`), `alt` (air), `max` (pool size). A new kind is
-  a new entry (+ a model in `MODEL_DEFS`), not new code.
-- Slots are pooled per type and never disposed (each has its own line material for the fade). States:
-  `live` → `struck` (red X + struck-through name, `STRUCK_T`) → `fade` (`FADE_T`) → freed. Units left more than
-  `FAR_BEHIND` from `ROUTE.pos`, and air units after the fight, fade out without the X (`vanish`).
-- Waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
+## Units: enemies and allies (`js/forces.js`, `js/enemies.js`, `js/allies.js`)
+- Both are a `Force` (the shared base). A type: `cls` (`air` / `ground` / `sea`), `glyph` (key into `GLYPHS`), `scale`,
+  `hp`, `speed`, `turn`, `names` (labels), `w` (group weight), `fires` (`missile` / `guns`), `alt` (air), `max` (pool size).
+  A new kind is a new entry (+ a glyph), not new code.
+- Slots are pooled per type and never disposed (a label sprite; aircraft also a `Plane` and a `Trail`). States:
+  `live` → `struck` (X + struck-through name, `STRUCK_T`) → `fade` (`FADE_T`) → freed. Units left more than
+  `FAR_BEHIND` from `ROUTE.pos`, and enemy aircraft after the fight, fade out without the X (`vanish`).
+- Ground / sea units: a flat marker, a pole of `POLE_H` up to the name, a dot near the bottom (the replay look).
+  Aircraft: the glyph in its attitude, an altitude line to a ground cross, the name beside it.
+- Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
+- Allies (`CFG.allies`): a group every 35–80 s in peace and in combat (fleet at sea, column on land, a fighter pair /
+  four with a shared callsign, or an AWACS), at most `ALLY_CAP` alive. In a fight allied ships / SAMs / fighters fire
+  on mid / high beats (rate-limited); their missiles always hit. Allies are never targeted and never struck.
 
 ## Performance & memory invariants (the wallpaper never restarts — leaks accumulate for days)
-- **Never create geometry per spawn and drop it.** Models share `MODEL_GEO` geometry; enemy slots, bursts, missiles,
+- **Never create geometry per spawn and drop it.** Units are glyphs drawn into `LINES`; unit slots, bursts, missiles,
   tracers and glow particles are pools allocated once. Anything removed from the scene for good must be disposed.
-- `disposeTree` skips materials with `userData.shared` (the label materials) and sprite geometry.
 - Label textures are cached per (text, colour, struck) and never disposed — fine for callsigns and type names;
   don't put changing text (numbers, timers) into labels.
 - Pools are ring buffers or bounded (`LINES.cap`, `GLOW.cap`, `MISSILES.N`, `TRACERS.N`, `ENEMY_TYPES[k].max`);
   spawn rates use time accumulators, never per frame.
-- Baseline: ~30–90 draw calls per frame, geometries plateau (see `soak.spec.js`).
+- `LINES` is one instanced draw call (cap 4000 segments); a glyph costs one segment per line. Baseline: ~20–60 draw
+  calls per frame (labels and trails are the rest), geometries plateau (see `soak.spec.js`).
 
 ## Running & testing
 - WE: "Open from File" → `project.json` (audio listener + properties come from WE).
@@ -108,14 +118,15 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
     date, no `requestAnimationFrame` (time only advances through `__t.sim(sec)` = `step(0.05)` per tick; `draw: true`
     also runs `draw()`), `RT()` on simulated time, Wallpaper Engine mode (audio fed by `__t.sim(sec, { audio })`).
   - `tests/support/inpage.js` (`window.__t`): `sim` runs `checkInvariants()` after every step (finite, orthonormal
-    planes above the floor, known modes, target ↔ chasers, enemies on the right terrain, bounded pools, everything
+    planes above the floor, known modes, target ↔ chasers, units on the right terrain, allies never struck, bounded pools, everything
     within `H.BOUND` of the origin); `forceFight` / `fightOff`; `sample` / `screen` (pixels); `geometries` (leaks);
     `groundCheck` (shader vs JS terrain); `props` (apply WE properties).
   - **When adding a mode, an enemy state or a pool**, update the sets / bounds in `inpage.js`.
   - `repo.spec.js` checks the cache-buster (all tags equal, matches "Current: `v=N`" here), the load order line
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.
   - `preview.jpg`: `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
-    (`$env:PREVIEW_T` = seconds of combat before the shot).
+    (`$env:PREVIEW_T` = seconds of combat before the shot). `$env:PREVIEW = 'shots'` renders a few scenarios
+    (peace with allies, combat, close-ups) into `test-results/shots/` — the quickest way to look at a visual change.
 - Console checks by hand (browser): stop the loop with `frame = () => {}`, then drive it with `step(0.05)` and `draw()`;
   load `tests/support/inpage.js` with `eval(await (await fetch('/tests/support/inpage.js')).text()); __t.setup()`
   to get `__t`. Don't use `paused = true` for this — `onBeat` ignores beats while paused.

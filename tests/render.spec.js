@@ -5,7 +5,8 @@ const { test, expect } = require('./support/harness');
 async function around(wp, who) {
   return wp.run((who) => {
     draw();
-    const p = who === 'friend' ? SQUAD.planes[0].pos : ENEMIES.list.find(e => e.alive && e.plane && __t.screen(e.pos)) ?.pos;
+    const on = p => { const s = __t.screen(p); return s && s.x > 20 && s.y > 20 && s.x < innerWidth - 20 && s.y < innerHeight - 20; };
+    const p = who === 'friend' ? SQUAD.planes[0].pos : ENEMIES.list.find(e => e.alive && on(e.pos)) ?.pos;
     if (!p) return null;
     const s = __t.screen(p); if (!s || s.x < 0 || s.y < 0 || s.x > innerWidth || s.y > innerHeight) return null;
     const gl = renderer.getContext(), c = renderer.domElement, k = c.width / innerWidth, R = 14;
@@ -30,7 +31,7 @@ for (const cam of ['cinematic', 'fixed']) {
     await wp.run(() => __t.forceFight());
     let e = null;
     for (let i = 0; i < 30 && !e; i++) { await wp.sim(2, { audio: true }); e = await around(wp, 'enemy'); }
-    expect(e, 'an enemy aircraft on screen during combat').toBeTruthy();
+    expect(e, 'an enemy on screen during combat').toBeTruthy();
     expect(e[0], 'red').toBeGreaterThan(150); expect(e[0]).toBeGreaterThan(e[2] + 60);
   });
 }

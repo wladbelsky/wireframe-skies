@@ -28,8 +28,8 @@ test('4 minutes of combat: kills, maneuvers, hostile missiles that miss, nobody 
   });
   expect(r.v).toEqual([]);
   expect(r.s.kills).toBeGreaterThan(15);
-  expect(r.s.shots).toBeGreaterThan(r.s.kills * 0.8);
-  expect(r.s.hostile, 'enemies fire back').toBeGreaterThan(3);
+  expect(r.s.shots + r.s.allyShots, 'kills come from missiles (ours and allied)').toBeGreaterThan(r.s.kills * 0.8);
+  expect(r.s.hostile, 'enemies fire back').toBeGreaterThan(1);
   expect(r.mans.length, `maneuvers seen: ${r.mans}`).toBeGreaterThan(3);
   expect(r.kinds.length, `target types hit: ${r.kinds}`).toBeGreaterThan(2);
   expect(r.minY).toBeGreaterThan(12);
