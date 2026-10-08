@@ -11,7 +11,7 @@ class Trail {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('color', new THREE.BufferAttribute(this.col, 3));
-    this.line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));   // drawn over the terrain like every other line
     this.line.frustumCulled = false; this.line.renderOrder = 1;
     this.n = 0; this.acc = 0; this.color = new THREE.Color(color); this.len = -1; this.gain = 0.75;
     scene.add(this.line);
@@ -223,7 +223,8 @@ const MISSILES = {
         if (m.hit && m.age > 8) { this.detonate(m, true); continue; }   // never fly forever: it got there
       } else if (m.lock > m.age) { m.hit = false; m.lock = m.age; }   // target gone: fly on briefly, then self-destruct
       if (!m.hit && m.age > m.lock + 2.5) { this.detonate(m, false); continue; }
-      if (m.p.y < HSCALE * 6 && m.p.y < TERRAIN.height(m.p.x, m.p.z) + 0.5) { this.detonate(m, false); continue; }   // into the ground
+      // into the ground (a sure-hit missile always gets to its target, whatever the ridges on the way)
+      if (!m.hit && m.p.y < HMAX && m.p.y < TERRAIN.height(m.p.x, m.p.z) + 0.5) { this.detonate(m, false); continue; }
       m.p.addScaledVector(m.d, m.speed * dt);
       m.hacc += dt;
       if (m.hacc >= MSL_HDT) { m.hacc %= MSL_HDT; m.hist.copyWithin(3, 0, (MSL_HIST - 1) * 3); m.hn = Math.min(MSL_HIST, m.hn + 1); }

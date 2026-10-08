@@ -39,6 +39,7 @@ function reliefField(x, z, land) {
 }
 /* terrain height in units: the relief scaled (mountains up to ~100), 0 at sea level; contour lines are every 1/14 of relief */
 const HSCALE = 26;
+const HMAX = (0.75 * 6.2 + 1.6) * HSCALE;   // upper bound: land ≤ 0.75, relief ≤ land · (1.2 + 5) + 1.6 (keep in sync with the fields)
 function heightField(x, z, land) { return reliefField(x, z, land) * HSCALE; }
 function cityField(x, z, land) {
   const c = clamp((vnoise(x, z, 512, 10) - 0.62) / 0.12, 0, 1);

@@ -42,7 +42,7 @@ class Force {
     const s = this.slot(type); if (!s) return null;
     s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
-    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false;
+    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false; s.downed = false;
     setLabel(s.label, s.name, this.css, false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
     else { s.pos.set(pos.x, TERRAIN.height(pos.x, pos.z), pos.z); s.vel.set(0, 0, 0); }   // on the ground (ships: sea level)
@@ -57,7 +57,7 @@ class Force {
     if (!e.alive) return;
     e.hp -= dmg;
     if (e.hp > 0) { BURSTS.spawn(e.pos, this.color, 1.2, false); return; }
-    e.alive = false; e.state = 'struck'; e.t = 0; this.kills++;
+    e.alive = false; e.state = 'struck'; e.t = 0; e.downed = true; this.kills++;
     this.onGone(e);
     BURSTS.spawn(e.ground ? _fq.set(e.pos.x, e.pos.y + 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);
     setLabel(e.label, e.name, this.css, true);
@@ -90,7 +90,7 @@ class Force {
       e.t += dt;
       if (e.state === 'struck' && e.t > STRUCK_T) { e.state = 'fade'; e.t = 0; }
       if ((e.state === 'fade' && e.t >= FADE_T) || (e.state === 'retreat' && e.t >= e.retT)) { this.free(e); continue; }
-      if (e.plane) { if (e.state === 'live' || e.state === 'retreat') this.fly(e, dt); else this.fall(e, dt); }
+      if (e.plane) { if (e.state === 'live' || e.state === 'retreat') this.fly(e, dt); else if (e.downed) this.fall(e, dt); else this.coast(e, dt); }
       else if (e.state === 'live') this.crawl(e, dt);
       if (e.state === 'live' && e.pos.distanceTo(ROUTE.pos) > FAR_BEHIND) this.vanish(e);   // left far behind
     }
@@ -103,6 +103,7 @@ class Force {
     e.vel.copy(e.plane.dir).multiplyScalar(e.plane.speed);
     e.trail.update(dt, e.pos, true);
   }
+  coast(e, dt) { e.plane.move(dt); e.trail.update(dt, e.pos, true); }   // vanishing (not shot down): straight on while it fades
   fall(e, dt) {   // shot down: tumble and fall while it fades
     const pl = e.plane; pl.man = null; pl.dir.y = Math.max(-0.8, pl.dir.y - dt * 0.6); pl.dir.normalize(); pl.up.applyAxisAngle(pl.dir, dt * 3); pl.orthoUp();
     pl.move(dt); e.trail.update(dt, e.pos, true);

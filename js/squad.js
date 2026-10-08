@@ -22,7 +22,7 @@ const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first
 };
 const ROUTE = {
   pos: new V3(0, 70, 0), heading: 0, tgtHeading: 0, alt: 70, tgtAlt: 70, speed: CRUISE, turnT: 25, altT: 12,
-  fwd: new V3(0, 0, 1), right: new V3(-1, 0, 0), combat: false, overLand: false, sameT: 0, scouted: false,
+  fwd: new V3(0, 0, 1), right: new V3(-1, 0, 0), combat: false, overLand: false, sameT: 0, scouted: false, clearT: 0, ground: 0,
   get cruise() { return CRUISE * CFG.speed / 100; },
   update(dt) {
     this.turnT -= dt; this.altT -= dt;
@@ -38,7 +38,11 @@ const ROUTE = {
     if (this.altT <= 0) { this.altT = rand(10, 30); this.tgtAlt = rand(38, 140); }
     this.heading = approachAngle(this.heading, this.tgtHeading, 0.06 * dt);
     // altitude: the chosen one, but always ROUTE_CLEAR above the terrain under and ahead of the route (climb faster then)
-    let g = 0; for (let d = 0; d <= 600; d += 100) g = Math.max(g, TERRAIN.height(this.pos.x + this.fwd.x * d, this.pos.z + this.fwd.z * d));
+    if ((this.clearT -= dt) <= 0) {   // terrain under / ahead of the route, refreshed twice a second
+      this.clearT = 0.5; this.ground = 0;
+      for (let d = 0; d <= 600; d += 100) this.ground = Math.max(this.ground, TERRAIN.height(this.pos.x + this.fwd.x * d, this.pos.z + this.fwd.z * d));
+    }
+    const g = this.ground;
     const want = Math.max(this.tgtAlt, g + ROUTE_CLEAR);
     this.alt += clamp(want - this.alt, -3.5 * dt, (this.alt < g + ROUTE_CLEAR ? 10 : 3.5) * dt);
     const sp = this.combat ? this.cruise * 0.45 : this.cruise; this.speed += clamp(sp - this.speed, -6 * dt, 4 * dt);

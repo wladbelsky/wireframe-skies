@@ -160,3 +160,21 @@ test('music back during the mop-up: the fight just goes on', async ({ wp }) => {
   expect(r.marked).toBe(0);
   expect(r.modes.every(m => m !== 'form' && m !== 'rejoin')).toBe(true);
 });
+
+test('a sure-hit missile is not lost to a ridge; a vanishing aircraft does not fall like a kill', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const p = SQUAD.planes[0], t = ENEMIES.spawn('fighter', p.pos.clone().addScaledVector(p.dir, 200), 0);
+    let hit = 0;
+    const m = MISSILES.fire({ p: p.pos.clone().setY(TERRAIN.height(p.pos.x, p.pos.z) - 5), d: p.dir, speed: 40, target: t, hit: true, onHit: () => { hit++; } });
+    __t.sim(0.1);
+    const flying = m.on || hit > 0;
+    __t.sim(8);
+    const a = ALLIES.spawn('fighter', p.pos.clone().add(new THREE.Vector3(0, 30, 0)), 0, 'TEST 1'), dy0 = a.plane.dir.y;
+    ALLIES.vanish(a); __t.sim(1);
+    return { flying, hit, dy0, dy1: a.plane.dir.y };
+  });
+  expect(r.flying, 'below the terrain, the sure-hit missile keeps going').toBe(true);
+  expect(r.hit).toBe(1);
+  expect(Math.abs(r.dy1 - r.dy0), 'no dive while fading').toBeLessThan(1e-6);
+});
