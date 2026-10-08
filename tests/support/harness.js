@@ -26,8 +26,8 @@ function initScript({ seed, we }) {
 
 class Wallpaper {
   constructor(page, errors) { this.page = page; this.errors = errors; this.installed = false; }
-  /* load the wallpaper; query e.g. '?cam=fixed' */
-  async boot({ seed = SEED, we = true, query = '', time = '2026-06-21T12:00:00Z' } = {}) {
+  /* load the wallpaper; query e.g. '?cam=fixed'; splash: keep the start-up splash (hidden by default) */
+  async boot({ seed = SEED, we = true, query = '', time = '2026-06-21T12:00:00Z', splash = false } = {}) {
     if (!this.installed) {
       await this.page.clock.setFixedTime(new Date(time));
       await this.page.addInitScript(initScript, { seed, we });
@@ -37,7 +37,7 @@ class Wallpaper {
     await this.page.goto('/index.html' + query);
     const ok = await this.page.evaluate(() => typeof ready !== 'undefined' && ready && SQUAD.planes.length === 4);
     if (!ok) throw new Error('wallpaper did not initialise');
-    await this.page.evaluate(() => __t.setup());
+    await this.page.evaluate((splash) => { __t.setup(); const s = document.getElementById('splash'); if (s && !splash) s.style.display = 'none'; }, splash);
     return this;
   }
   async reload() {

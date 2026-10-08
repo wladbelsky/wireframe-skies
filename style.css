@@ -1,6 +1,26 @@
 html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #02060f; }
 #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
+/* start-up splash (hidden by main.js after SPLASH_T; the 8 s fallback hides it even if scripts fail) */
+#splash {
+  position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  background:
+    linear-gradient(rgba(44,111,208,.10) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, rgba(44,111,208,.10) 1px, transparent 1px) 0 0 / 64px 64px,
+    radial-gradient(ellipse at center, #071630 0%, #02060f 72%);
+  color: #bfe2ff; font-family: "Bahnschrift", "Eurostile", "DIN Alternate", "Segoe UI", Arial, sans-serif; user-select: none;
+  transition: opacity .7s; animation: splashFailsafe .6s 8s forwards;
+}
+#splash .tag { color: #46ff78; font-size: 13px; letter-spacing: .45em; text-shadow: 0 0 10px rgba(70,255,120,.6); }
+#splash .t { font-size: 40px; font-weight: 300; letter-spacing: .32em; padding-left: .32em; color: #eaf6ff; text-shadow: 0 0 18px rgba(79,212,255,.65), 0 0 4px rgba(79,212,255,.9); }
+#splash .s { font-size: 13px; letter-spacing: .3em; opacity: .8; animation: splashBlink 1.1s steps(2) infinite; }
+#splash .bar { width: 320px; height: 2px; background: rgba(79,212,255,.15); overflow: hidden; box-shadow: 0 0 8px rgba(79,212,255,.25); }
+#splash .bar i { display: block; height: 100%; background: #4fd4ff; box-shadow: 0 0 8px #4fd4ff; transform-origin: left; animation: splashBar 2.5s ease-out forwards; }
+#splash.off { opacity: 0; pointer-events: none; }
+@keyframes splashBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes splashBlink { 50% { opacity: .3; } }
+@keyframes splashFailsafe { to { opacity: 0; visibility: hidden; } }
+
 /* In-browser settings (hidden inside Wallpaper Engine) */
 .cfg-gear {
   position: fixed; top: 14px; left: 14px; z-index: 20; cursor: pointer;

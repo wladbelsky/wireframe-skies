@@ -46,3 +46,19 @@ test('the hero plane stays on screen during combat', async ({ wp }) => {
   });
   expect(r).toBeGreaterThan(0.9);
 });
+
+test('a new unit appears like a radar contact: ping, growing pole, name typed out', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const p = SQUAD.planes[0], e = ENEMIES.spawn('sam', p.pos.clone().addScaledVector(p.dir, 150).setY(0), 0);
+    const label = () => e.label.visible ? [...LABEL_CACHE.entries()].find(([, m]) => m === e.label.material)[0].split('|')[0] : '';
+    const out = {};
+    draw(); out.t0 = { label: label(), n: LINES.n };
+    __t.sim(0.8, { draw: true }); out.mid = label();
+    __t.sim(1.0, { draw: true }); out.end = label();
+    return { name: e.name, ...out };
+  });
+  expect(r.t0.label, 'no name before the pole is up').toBe('');
+  expect(r.name.startsWith(r.mid) && r.mid.length > 0 && r.mid.length < r.name.length, `typing: "${r.mid}" of "${r.name}"`).toBe(true);
+  expect(r.end).toBe(r.name);
+});

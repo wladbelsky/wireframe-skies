@@ -6,7 +6,7 @@
   let rt = 1000;                       // simulated real time (RT): arming, beat gaps and hold timers run on it
   const DT = 0.05;
   H.MODES = new Set(['form', 'engage', 'reposition', 'rejoin']);
-  H.ENEMY_STATES = new Set(['live', 'struck', 'fade']);
+  H.ENEMY_STATES = new Set(['live', 'struck', 'fade', 'retreat']);
   H.BOUND = 3000;                      // floating origin: no local coordinate ever gets further out than this
 
   H.rt = () => rt;
@@ -55,7 +55,9 @@
       if (p.mode === 'engage' && !p.target) v.push(`${w} engaging nothing`);
       H.minY = Math.min(H.minY, p.pos.y);
     }
-    if (!AUD.armed && SQUAD.planes.some(p => p.mode === 'engage')) v.push('engaging out of combat');
+    if (!SQUAD.engaged && SQUAD.planes.some(p => p.mode === 'engage')) v.push('engaging out of combat');
+    if (SQUAD.mopT > 0 && SQUAD.planes.some(p => p.target && !p.target.mop)) v.push('mop-up target not marked');
+    if (SQUAD.mopT <= 0 && ENEMIES.list.some(e => e.mop && e.alive && !AUD.armed)) v.push('mop flag outside the mop-up');
     for (const e of [...ENEMIES.list, ...ALLIES.list]) {
       if (!e.inUse) v.push(`freed ${e.type} still listed`);
       if (!H.ENEMY_STATES.has(e.state)) v.push(`${e.type} unknown state ${e.state}`);
@@ -95,12 +97,14 @@
     return { violations, steps: i, t: T };
   };
   /* combat without the arming delay: fighting until fightOff() */
+  let activeDesc = null;   // AUD's own 'active' getter, put back by fightOff
   H.forceFight = () => {
+    if (!activeDesc) activeDesc = Object.getOwnPropertyDescriptor(AUD, 'active');
     Object.defineProperty(AUD, 'active', { configurable: true, get: () => true });
     AUD.soundStart = rt - 10; AUD.lastActive = rt; AUD.combat = true; AUD.holdUntil = 0;
   };
-  H.fightOff = () => { delete AUD.active; AUD.lastActive = rt - 100; AUD.soundStart = -1; };
-  H.stats = () => ({ T, armed: AUD.armed, fighting: AUD.fighting, enemies: ENEMIES.list.length, alive: ENEMIES.alive, kills: ENEMIES.kills, allies: ALLIES.list.length, allyShots: ALLIES.shots,
+  H.fightOff = () => { if (activeDesc) Object.defineProperty(AUD, 'active', activeDesc); AUD.lastActive = rt - 100; AUD.soundStart = -1; };
+  H.stats = () => ({ T, armed: AUD.armed, mopT: SQUAD.mopT, fighting: AUD.fighting, enemies: ENEMIES.list.length, alive: ENEMIES.alive, kills: ENEMIES.kills, allies: ALLIES.list.length, allyShots: ALLIES.shots,
     spawned: ENEMIES.spawned, shots: SQUAD.shots, hostile: ENEMIES.missiles, modes: SQUAD.planes.map(p => p.mode), shifts: WORLD.shifts });
 
   /* ---- rendering ---- */

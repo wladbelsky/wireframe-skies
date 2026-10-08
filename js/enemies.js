@@ -1,7 +1,7 @@
 'use strict';
 /* ===== Enemies: types, waves, behaviour, hostile fire =====
    Waves spawn ahead of the flight only while AUD.fighting: ground groups where the map ahead is land, ships where it
-   is sea, air groups anywhere. Air units withdraw when the fight is over. Hostile missiles always lose lock.
+   is sea, air groups anywhere. After a fight they retreat (see SQUAD.startMopUp). Hostile missiles always lose lock.
    An air group is one aircraft type under one name; ACE_P of fighter / attack groups are aces: a squadron callsign
    (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots. */
 const ENEMY_TYPES = {
@@ -63,19 +63,13 @@ class EnemyForce extends Force {
       if (this.waveT <= 0 && this.alive < want) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
-    // after the fight: aircraft fly off (fly → leave), ground units and ships fade out a little later
-    for (const e of this.list) {
-      if (e.state !== 'live' || AUD.armed) continue;
-      if (e.mode !== 'leave') { e.mode = 'leave'; e.modeT = e.plane ? rand(4, 8) : rand(25, 45); }
-      else if (!e.plane && (e.modeT -= dt) <= 0) this.vanish(e);
-    }
-    super.update(dt);
+    super.update(dt);   // after a fight SQUAD.startMopUp / endMopUp send the enemies into retreat
   }
   fly(e, dt) {
     const pl = e.plane;
     e.modeT -= dt; e.cd -= dt;
     const tgt = this.nearestFriend(e.pos);
-    if (e.mode === 'leave') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; if (e.modeT <= 0) this.vanish(e); }
+    if (e.state === 'retreat') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; }   // turn away and climb
     else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - e.pos.y) * 0.05; }
     else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - e.pos.y) * 0.01; }
     else {   // fighters: merge, then dogfight with jinks

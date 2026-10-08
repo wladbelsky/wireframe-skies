@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=20`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=21`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -54,7 +54,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - **Combat state** is latched in `updateArming()` (`audio.js`, first thing in `step`): sound for `ARM_DELAY` s →
   `AUD.combat` (`AUD.armed`). When the sound stops, `AUD.holding` for `DISARM_DELAY` s (still armed, but not
   `AUD.fighting`: no new waves, no firing on the beat), then stand-down; sound for `RESUME_DELAY` s resumes it.
-  Use `AUD.fighting` for spawning / firing, `AUD.armed` for "combat mode" (planes fight instead of flying formation).
+  Use `AUD.fighting` for spawning / enemy fire on the beat. The flight adds the **mop-up** (`SQUAD.mopT`, `MOPUP_T`):
+  `SQUAD.engaged` (= `AUD.armed || mopT > 0`) is "combat mode" (planes fight instead of flying formation, camera,
+  allied fighters), `SQUAD.firing` (= `AUD.fighting || mopT > 0`) is "the flight picks targets and shoots".
+- **Start-up splash** (`#splash`): hidden in `step` at `T > SPLASH_T` (2.5 s), CSS failsafe after 8 s; the test
+  harness hides it unless `boot({ splash: true })`.
 
 ## World, terrain, floating origin
 - Ground is the plane y = 0; the map is drawn only by the ground fragment shader (`terrain.js`). Nothing is
@@ -74,7 +78,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   (full-rate pull-up) and below `CEIL`. Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
   `steer`; one heading for the ground is cut short. New maneuver: an entry in `MANEUVERS` with `need(plane, R)`.
 - `ROUTE` moves the formation across the map (gentle turns, altitude changes); in combat it slows down (the battle
-  area drifts forward), on stand-down `SQUAD.rejoin` restarts it from the flight's centroid.
+  area drifts forward); after the mop-up `SQUAD.rejoin` restarts it from the flight's centroid.
+- **End of a fight:** `armed → false` → `SQUAD.startMopUp()`: enemies alive, within `MOPUP_R` and on screen
+  (`CAM.onScreen`) get `e.mop`, every other enemy `retreat`s. For up to `MOPUP_T` s the flight only targets `mop`
+  units and shoots on a timer (no beats). `endMopUp()` (time up / nothing left) sends the rest into retreat and
+  rejoins. Music back during the mop-up → `resume()`: the fight goes on, no second break.
   Variety: after `SAME_SEA_T` s over open sea (`SAME_LAND_T` over land) the next turn heads for the nearest coast
   (`ROUTE.scout`, ±90°, `SCOUT_R`). Feature sizes in `noise.js` are tuned to the cruise speed — scaling them up
   brings back minutes of empty sea (`flight.spec.js` checks the longest stretch).
@@ -91,8 +99,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   A new kind is a new entry (+ a glyph), not new code.
 - Slots are pooled per type and never disposed (a label sprite; aircraft also a `Plane` and a `Trail`). States:
   `live` → `struck` (X + struck-through name, `STRUCK_T`) → `fade` (`FADE_T`) → freed. Units left more than
-  `FAR_BEHIND` from `ROUTE.pos` fade out without the X (`vanish`); after the fight enemy aircraft fly off and
-  ground units / ships fade 25–45 s later.
+  `FAR_BEHIND` from `ROUTE.pos` fade out without the X (`vanish`). `retreat` (after a fight, see Flight): aircraft
+  turn away and climb, ground units stay; the last `RETREAT_FLICK` s they flicker out and poles sink → freed.
+- **Appearing** (`e.t < APPEAR_T` while `live`, `Force.appear` / `typed`): a radar ping (two rings, flat on the
+  ground or camera-facing), the glyph flickers in, the pole / altitude line grows from the ground, the name types
+  out. Labels are set from `draw()` (prefix textures are freed by the ref-counted `LABEL_CACHE`).
 - Ground / sea units: a flat marker, a pole of `POLE_H` up to the name, a dot near the bottom (the replay look).
   Aircraft: the glyph in its attitude, an altitude line to a ground cross, the name beside it.
 - Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
@@ -123,7 +134,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   - The harness (`tests/support/harness.js`) boots the page deterministically: seeded `Math.random` (`SEED`), fixed
     date, no `requestAnimationFrame` (time only advances through `__t.sim(sec)` = `step(0.05)` per tick; `draw: true`
     also runs `draw()`), `RT()` on simulated time, Wallpaper Engine mode (audio fed by `__t.sim(sec, { audio })`).
-  - `tests/support/inpage.js` (`window.__t`): `sim` runs `checkInvariants()` after every step (finite, orthonormal
+  - `tests/support/inpage.js` (`window.__t`): `sim` runs `checkInvariants()` after every step (mop-up flags, finite, orthonormal
     planes above the floor, known modes, target ↔ chasers, units on the right terrain, allies never struck, bounded pools, everything
     within `H.BOUND` of the origin); `forceFight` / `fightOff`; `sample` / `screen` (pixels); `geometries` (leaks);
     `groundCheck` (shader vs JS terrain); `props` (apply WE properties).
@@ -132,7 +143,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.
   - `preview.jpg`: `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
     (`$env:PREVIEW_T` = seconds of combat before the shot). `$env:PREVIEW = 'shots'` renders a few scenarios
-    (peace with allies, combat, close-ups) into `test-results/shots/` — the quickest way to look at a visual change.
+    (splash, peace with allies, combat, close-ups, a contact appearing, mop-up, retreat) into `test-results/shots/` —
+    the quickest way to look at a visual change.
 - Console checks by hand (browser): stop the loop with `frame = () => {}`, then drive it with `step(0.05)` and `draw()`;
   load `tests/support/inpage.js` with `eval(await (await fetch('/tests/support/inpage.js')).text()); __t.setup()`
   to get `__t`. Don't use `paused = true` for this — `onBeat` ignores beats while paused.

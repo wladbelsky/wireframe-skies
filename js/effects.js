@@ -92,9 +92,9 @@ const LINES = {
     this.CA[j] = c.r * a0; this.CA[j + 1] = c.g * a0; this.CA[j + 2] = c.b * a0; this.CB[j] = c.r * a1; this.CB[j + 1] = c.g * a1; this.CB[j + 2] = c.b * a1;
     this.W[i] = w || LINE_W;
   },
-  /* altitude line from p down to the ground with a small cross there */
-  drop(p, c, a, w) {
-    this.add(p.x, p.y, p.z, p.x, 0, p.z, c, a * 0.8, a * 0.35, w || 2.2);
+  /* altitude line from p down to the ground with a small cross there; grow < 1: only that part, from the ground up */
+  drop(p, c, a, w, grow) {
+    this.add(p.x, p.y * (grow == null ? 1 : grow), p.z, p.x, 0, p.z, c, a * 0.8, a * 0.35, w || 2.2);
     const s = 1.4; this.add(p.x - s, 0, p.z, p.x + s, 0, p.z, c, a * 0.6, a * 0.6, 1.4); this.add(p.x, 0, p.z - s, p.x, 0, p.z + s, c, a * 0.6, a * 0.6, 1.4);
   },
   /* a camera-facing X of size r around p */

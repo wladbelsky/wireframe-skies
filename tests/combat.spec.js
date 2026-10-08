@@ -115,3 +115,48 @@ test('an enemy air group is one type under one name; some fighter / attack group
   expect(r.aces).toBeLessThan(r.groups * 0.2);
   for (const t of r.aceTypes) expect(['fighter', 'attacker']).toContain(t);
 });
+
+test('after the music: mop-up of the targets on screen, the rest retreat, then the flight rejoins', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const v = [];
+    __t.forceFight(); v.push(...__t.sim(40, { audio: true }).violations);
+    // make sure something is close and counts as on screen when the music stops
+    const e = ENEMIES.spawn('heli', SQUAD.centroid(new THREE.Vector3()).setY(35), 0); e.mode = 'hover';
+    const onScreen = CAM.onScreen; CAM.onScreen = (q, m) => q === e.pos || onScreen.call(CAM, q, m);
+    __t.fightOff();
+    v.push(...__t.sim(DISARM_DELAY + 0.3, { audio: false }).violations);
+    const atStart = { mopT: SQUAD.mopT, mop: ENEMIES.list.filter(x => x.alive && x.mop).length, retreating: ENEMIES.list.filter(x => x.state === 'retreat').length,
+      unmarkedAlive: ENEMIES.list.filter(x => x.alive && !x.mop).length };
+    const k0 = ENEMIES.kills;
+    v.push(...__t.sim(MOPUP_T + 1, { audio: false, until: () => SQUAD.mopT <= 0 }).violations);
+    const mopKills = ENEMIES.kills - k0, rejoining = SQUAD.planes.every(q => q.mode === 'rejoin' || q.mode === 'form');
+    v.push(...__t.sim(60, { audio: false, until: () => ENEMIES.list.length === 0 }).violations);
+    return { v: v.slice(0, 10), atStart, mopKills, rejoining, left: ENEMIES.list.length };
+  });
+  expect(r.v).toEqual([]);
+  expect(r.atStart.mopT).toBeGreaterThan(0);
+  expect(r.atStart.mop, 'targets marked for the mop-up').toBeGreaterThan(0);
+  expect(r.atStart.unmarkedAlive, 'everything not on screen retreats at once').toBe(0);
+  expect(r.mopKills, 'the flight finished something off without music').toBeGreaterThan(0);
+  expect(r.rejoining).toBe(true);
+  expect(r.left).toBe(0);
+});
+
+test('music back during the mop-up: the fight just goes on', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.forceFight(); __t.sim(30, { audio: true });
+    const e = ENEMIES.spawn('heli', SQUAD.centroid(new THREE.Vector3()).setY(35), 0); e.mode = 'hover';
+    const onScreen = CAM.onScreen; CAM.onScreen = (q, m) => q === e.pos || onScreen.call(CAM, q, m);
+    __t.fightOff(); __t.sim(DISARM_DELAY + 0.3, { audio: false });
+    const mopT = SQUAD.mopT;
+    const v = __t.sim(8, { audio: true }).violations;   // music again: arms after ARM_DELAY
+    return { v: v.slice(0, 5), mopT, after: SQUAD.mopT, armed: AUD.armed, marked: ENEMIES.list.filter(x => x.mop).length, modes: SQUAD.planes.map(q => q.mode) };
+  });
+  expect(r.v).toEqual([]);
+  expect(r.armed).toBe(true);
+  expect(r.after).toBe(0);
+  expect(r.marked).toBe(0);
+  expect(r.modes.every(m => m !== 'form' && m !== 'rejoin')).toBe(true);
+});

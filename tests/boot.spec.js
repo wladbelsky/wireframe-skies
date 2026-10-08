@@ -50,3 +50,11 @@ test('label textures of names / colours no longer shown are freed', async ({ wp 
   expect(r.n1).toBeLessThanOrEqual(r.n0);
   expect(r.shown).toBe(true);
 });
+
+test('the loading splash covers the start, then dissolves', async ({ wp }) => {
+  await wp.boot({ splash: true });
+  const before = await wp.run(() => { const s = document.getElementById('splash'); return !!s && getComputedStyle(s).display !== 'none' && !s.classList.contains('off') && s.textContent; });
+  expect(before).toContain('WIREFRAME SKIES');
+  await wp.sim(3);   // SPLASH_T = 2.5
+  expect(await wp.run(() => { const s = document.getElementById('splash'); return !s || s.classList.contains('off'); })).toBe(true);
+});

@@ -55,7 +55,7 @@ class AllyForce extends Force {
   }
   fly(e, dt) {
     const pl = e.plane; e.cd -= dt;
-    if (e.type === 'fighter' && AUD.armed) {
+    if (e.type === 'fighter' && SQUAD.engaged) {
       // in a fight: chase the nearest enemy aircraft near the battle area
       if (!e.target || !e.target.alive) e.target = ENEMIES.nearest(e.pos, 500, x => !!x.plane);
       if (e.target) { _a.copy(e.target.pos).addScaledVector(e.target.vel, 1).sub(e.pos).normalize(); return this.steerAir(e, _a, dt, 1.6); }

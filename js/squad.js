@@ -1,13 +1,17 @@
 'use strict';
 /* ===== The flight: route, formation, combat behaviour =====
    ROUTE is a virtual lead point moving across the map (gentle turns, altitude changes). In peace every plane flies
-   its formation slot relative to ROUTE. In combat (AUD.armed) ROUTE slows down (the battle area drifts forward) and
-   every plane fights on its own: pick a target, attack run, shoot (on the beat), reposition with a maneuver, evade
-   hostile missiles with a break turn and flares. When combat ends ROUTE jumps to the flight and they rejoin.
+   its formation slot relative to ROUTE. In combat (SQUAD.engaged) ROUTE slows down (the battle area drifts forward)
+   and every plane fights on its own: pick a target, attack run, shoot (on the beat), reposition with a maneuver,
+   evade hostile missiles with a break turn and flares.
+   When the music stops (AUD.armed → false, after the hold) comes the mop-up: for up to MOPUP_T s the flight finishes
+   off the enemies that were on screen (e.mop; shots paced by a timer, no beats); every other enemy retreats at once,
+   the rest when the mop-up ends. Then ROUTE jumps to the flight and they rejoin.
    Plane modes: form (slot flying) | engage (attack run on p.target) | reposition (after a shot / a break, maneuvers) |
    rejoin (back to the slot after a fight). Evading a missile is a break turn + flares, then reposition. */
 const CRUISE = 24;
-const SAME_SEA_T = 60, SAME_LAND_T = 150, SCOUT_R = 3000;   // s over open sea / land before the route heads for a coast; look-out range
+const SAME_SEA_T = 60, SAME_LAND_T = 150, SCOUT_R = 3000;
+const MOPUP_T = 14, MOPUP_R = 450;   // s of mop-up after the music; how far from the flight an on-screen enemy still counts   // s over open sea / land before the route heads for a coast; look-out range
 const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first)
   finger:  [[0, 0, 0], [-9, 0, -7], [9, 0, -7], [18, 0, -14]],
   diamond: [[0, 0, 0], [-9, -1, -7], [9, -1, -7], [0, -2, -14]],
@@ -54,7 +58,9 @@ const ROUTE = {
 
 const _sl = new V3(), _tg = new V3(), _D = new V3(), _c = new V3(), _lp = new V3(), _fp = new V3(), _gv = new V3();
 const SQUAD = {
-  planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0,
+  planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0, mopT: 0,
+  get engaged() { return AUD.armed || this.mopT > 0; },     // the flight fights (vs formation flying)
+  get firing() { return AUD.fighting || this.mopT > 0; },   // new targets and shots
   build(scene) {
     for (let i = 0; i < 4; i++) {
       const p = new Plane({ speed: CRUISE, turnRate: 0.5, rollRate: 2.6 });
@@ -73,13 +79,15 @@ const SQUAD = {
 
   update(dt) {
     const armed = AUD.armed;
-    if (armed && !this.wasArmed) this.engageAll();
-    if (!armed && this.wasArmed) this.rejoin();
-    this.wasArmed = armed; ROUTE.combat = armed;
+    if (armed && !this.wasArmed) { if (this.mopT > 0) this.resume(); else this.engageAll(); }
+    if (!armed && this.wasArmed) this.startMopUp();
+    this.wasArmed = armed;
+    if (this.mopT > 0 && ((this.mopT -= dt) <= 0 || !ENEMIES.list.some(e => e.alive && e.mop))) this.endMopUp();
+    const engaged = this.engaged; ROUTE.combat = engaged;
     ROUTE.update(dt);
-    if (!armed) this.peace(dt);
+    if (!engaged) this.peace(dt);
     for (const p of this.planes) {
-      if (armed && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
+      if (engaged && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
       p.steer(_D, dt); p.move(dt);
       p.vel.copy(p.dir).multiplyScalar(p.speed);
       p.trail.update(dt, p.pos, true);
@@ -117,6 +125,24 @@ const SQUAD = {
       if (!p.maneuvering && MANEUVERS.breakTurn.need(p)) p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, i % 3 === 0 ? -1 : 1));
     });
   },
+  /* the music stopped: finish off what is on screen, the other enemies retreat now */
+  startMopUp() {
+    this.centroid(_c);
+    for (const e of ENEMIES.list) {
+      if (!e.alive) continue;
+      e.mop = e.pos.distanceTo(_c) < MOPUP_R && CAM.onScreen(e.pos, 0.05);
+      if (!e.mop) ENEMIES.retreat(e);
+    }
+    this.mopT = MOPUP_T;
+    if (!ENEMIES.list.some(e => e.alive && e.mop)) this.endMopUp();
+  },
+  endMopUp() {
+    this.mopT = 0;
+    for (const e of ENEMIES.list) if (e.alive) ENEMIES.retreat(e);
+    this.rejoin();
+  },
+  /* the music came back during the mop-up: the fight simply goes on */
+  resume() { this.mopT = 0; for (const e of ENEMIES.list) e.mop = false; },
   rejoin() {
     // the route restarts from where the flight is, heading where it heads on average
     this.centroid(_c); _tg.set(0, 0, 0); for (const p of this.planes) _tg.add(p.dir);
@@ -128,8 +154,9 @@ const SQUAD = {
   },
   pickTarget(p) {
     let best = null, bs = Infinity;
+    const mop = this.mopT > 0;
     for (const e of ENEMIES.list) {
-      if (!e.alive || e.hp - e.incoming <= 0) continue;
+      if (!e.alive || e.hp - e.incoming <= 0 || (mop && !e.mop)) continue;
       const d = p.pos.distanceTo(e.pos), toC = e.pos.distanceTo(ROUTE.pos);
       _tg.subVectors(e.pos, p.pos).normalize();
       const s = d + (1 - p.dir.dot(_tg)) * 120 + e.chasers * 160 + Math.max(0, toC - 500) * 2 + Math.random() * 80;
@@ -148,7 +175,7 @@ const SQUAD = {
     if (p.target && !p.target.alive) this.release(p);
     if (p.mode === 'engage' && !p.target) { p.mode = 'reposition'; p.modeT = rand(0.5, 1.5); }
     if (p.mode === 'reposition' && p.modeT <= 0 && !p.maneuvering) {
-      const t = AUD.fighting ? this.pickTarget(p) : null;
+      const t = this.firing ? this.pickTarget(p) : null;
       if (t) { p.target = t; t.chasers++; p.mode = 'engage'; p.modeT = 25; p.ready = 0; }
       else p.modeT = rand(1, 2);
     }
@@ -168,7 +195,7 @@ const SQUAD = {
       const aim = p.dir.dot(_tg.subVectors(t.pos, p.pos).normalize());
       const inRange = d > 35 && d < (t.ground ? 190 : 210) && aim > 0.86;
       p.ready = inRange && p.cd <= 0 ? p.ready + dt : 0;
-      if (p.ready > 1.6 && AUD.fighting) this.shoot(p);   // music too quiet for beats: shoot anyway
+      if (this.firing && p.ready > (this.mopT > 0 ? 0.7 : 1.6)) this.shoot(p);   // no beats (quiet music / mop-up): shoot anyway
       if (d < 26 || (t.ground && d < 45 && p.pos.y < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
     } else if (!p.maneuvering) {
       // repositioning / nothing to do: extend, stay near the battle area, keep a sane altitude

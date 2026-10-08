@@ -15,9 +15,11 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
 - **With music** enemies appear ahead — fighters, bombers, attack jets and helicopters in the air, SAM sites, AA guns,
   tanks and radars on land, frigates and destroyers at sea. The flight breaks, picks targets, fires missiles on the
   beat (guns on the snare), then repositions with loops, Immelmanns, split-S, barrel rolls and break turns.
+  New targets appear like radar contacts: a ping, the pole rising from the ground, the name typing out.
   A destroyed target gets a red **X** and its name is struck through, then it fades away.
 - **Enemies fire back** (red missiles, AA gun streams), but never hit: the targeted plane breaks and pops flares.
-- When the music stops the flight holds for a few seconds, then the remaining enemies withdraw and the flight
+- When the music stops the flight holds for a few seconds, then finishes off the targets still on screen (for up to
+  14 s, without music); every other enemy retreats — aircraft turn away, ground units flicker out. Then the flight
   rejoins its formation.
 - A short notification sound never starts a fight: the music has to play for 4 s.
 

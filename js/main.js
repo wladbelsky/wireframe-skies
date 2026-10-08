@@ -69,8 +69,11 @@ function resize() {
 }
 
 /* ---- simulation step (sim time T) ---- */
+const SPLASH_T = 2.5;   // the start-up splash covers the first seconds (scene build, settings, first frames)
+let splash = document.getElementById('splash');
 function step(dt) {
   T += dt;
+  if (splash && T > SPLASH_T) { const s = splash; splash = null; s.classList.add('off'); setTimeout(() => s.remove(), 800); }
   updateArming();
   SQUAD.update(dt);
   ENEMIES.update(dt);

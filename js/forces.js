@@ -3,10 +3,15 @@
    Units are pooled slots per type (built on first use, never disposed: a label sprite, for aircraft a Plane and a
    trail). A unit is drawn as a schematic glyph (js/models.js): aircraft in their attitude with an altitude line,
    ground / sea units as a marker on the ground with a pole up to their name. States:
-   live → struck (a blinking X, the name struck through, STRUCK_T) → fade (FADE_T) → freed; vanish() fades without the X.
+   live → struck (a blinking X, the name struck through, STRUCK_T) → fade (FADE_T) → freed; vanish() fades without the X;
+   retreat() (after a fight): aircraft fly off, ground units stay, then they flicker out (the pole sinks) → freed.
+   A new unit appears like a radar contact (APPEAR_T): a ping ring, the glyph flickers in, the pole / altitude line
+   grows from the ground, the name types out.
    A type: { cls: 'air' | 'ground' | 'sea', glyph, scale, hp, speed, turn, names, w (weight in groups), fires, alt, max }. */
 const POLE_H = 18;            // ground / sea units: a vertical line from the marker up to their name
-const STRUCK_T = 1.8, FADE_T = 1.3, FAR_BEHIND = 950;
+const STRUCK_T = 1.8, FADE_T = 1.3, FAR_BEHIND = 950, APPEAR_T = 1.3, RETREAT_FLICK = 1.5;
+const easeOut = u => 1 - (1 - u) * (1 - u) * (1 - u);
+const flicker = t => (Math.floor(t * 22) % 3 === 0 ? 0.2 : 1);   // a stepped on/off pattern
 const _fq = new V3(), _fx = new V3();
 /* nearest item (anything with .pos) of list to p, within maxD, passing filter */
 function nearestOf(list, p, maxD, filter) {
@@ -16,7 +21,7 @@ function nearestOf(list, p, maxD, filter) {
 }
 
 class Force {
-  constructor(types, colorKey) { this.types = types; this.colorKey = colorKey; this.list = []; this.slots = {}; this.spawned = 0; this.kills = 0; }
+  constructor(types, colorKey) { this.types = types; this.colorKey = colorKey; this.list = []; this.slots = {}; this.spawned = 0; this.kills = 0; this.css = cssOf(this.color); }
   get color() { return PAL[this.colorKey]; }
   get alive() { let k = 0; for (const e of this.list) if (e.alive) k++; return k; }
   /* a free slot of a type (built on first use); null when the type's pool is full */
@@ -37,8 +42,8 @@ class Force {
     const s = this.slot(type); if (!s) return null;
     s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
-    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false;
-    setLabel(s.label, s.name, cssOf(this.color), false);
+    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false;
+    setLabel(s.label, s.name, this.css, false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
     else { s.pos.set(pos.x, 0, pos.z); s.vel.set(0, 0, 0); }
     this.list.push(s); this.spawned++;
@@ -46,6 +51,7 @@ class Force {
   }
   free(s) { s.inUse = false; s.alive = false; s.label.visible = false; if (s.trail) s.trail.line.visible = false; const i = this.list.indexOf(s); if (i >= 0) this.list.splice(i, 1); }
   vanish(e) { e.alive = false; e.state = 'fade'; e.t = 0; this.onGone(e); }
+  retreat(e) { if (e.state !== 'live') return; e.alive = false; e.state = 'retreat'; e.t = 0; e.retT = e.plane ? rand(4, 7) : 2.5; e.mop = false; this.onGone(e); }
   onGone(e) {}                        // a unit stops being a target (killed / vanished)
   damage(e, dmg) {
     if (!e.alive) return;
@@ -54,7 +60,7 @@ class Force {
     e.alive = false; e.state = 'struck'; e.t = 0; this.kills++;
     this.onGone(e);
     BURSTS.spawn(e.ground ? _fq.set(e.pos.x, 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);
-    setLabel(e.label, e.name, cssOf(this.color), true);
+    setLabel(e.label, e.name, this.css, true);
   }
 
   /* ---- placement of groups (ground units only on land, ships only at sea, a minimum spacing) ---- */
@@ -83,8 +89,8 @@ class Force {
       const e = this.list[i];
       e.t += dt;
       if (e.state === 'struck' && e.t > STRUCK_T) { e.state = 'fade'; e.t = 0; }
-      if (e.state === 'fade' && e.t >= FADE_T) { this.free(e); continue; }
-      if (e.plane) { if (e.state === 'live') this.fly(e, dt); else this.fall(e, dt); }
+      if ((e.state === 'fade' && e.t >= FADE_T) || (e.state === 'retreat' && e.t >= e.retT)) { this.free(e); continue; }
+      if (e.plane) { if (e.state === 'live' || e.state === 'retreat') this.fly(e, dt); else this.fall(e, dt); }
       else if (e.state === 'live') this.crawl(e, dt);
       if (e.state === 'live' && e.pos.distanceTo(ROUTE.pos) > FAR_BEHIND) this.vanish(e);   // left far behind
     }
@@ -109,30 +115,53 @@ class Force {
     if (!ok) { e.heading += 0.6 * dt; e.vel.set(0, 0, 0); return; }
     e.vel.copy(_fq).multiplyScalar(e.ty.speed * CFG.speed / 100); e.pos.addScaledVector(e.vel, dt);
   }
-  /* per frame: glyphs, altitude lines / poles, labels, cross-outs */
+  /* per frame: glyphs, altitude lines / poles, labels, cross-outs, appear / retreat animations */
   draw() {
     const c = this.color;
     for (const e of this.list) {
-      const a = e.state === 'fade' ? Math.max(0, 1 - e.t / FADE_T) : 1, g = GLYPHS[e.ty.glyph];
+      const g = GLYPHS[e.ty.glyph];
+      let a = 1, grow = 1, shown = true;   // alpha, pole / altitude-line height, label on
+      if (e.state === 'fade') a = Math.max(0, 1 - e.t / FADE_T);
+      else if (e.state === 'retreat') {
+        const left = e.retT - e.t;
+        if (left < RETREAT_FLICK) { const u = Math.max(0, left / RETREAT_FLICK); a = u * flicker(e.t); if (e.ground) grow = u; shown = a > 0.5; }
+      } else if (e.state === 'live' && e.t < APPEAR_T) {
+        this.appear(e, c); shown = this.typed(e);
+        a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
+      } else if (e.state === 'live') setLabel(e.label, e.name, this.css, false);   // the whole name (a no-op once set)
       if (e.ground) {
         drawMarker(g, e.pos.x, e.pos.z, e.heading, e.ty.scale, c, a, 2);
-        if (CFG.dropLines) LINES.add(e.pos.x, 0.15, e.pos.z, e.pos.x, POLE_H, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
+        if (CFG.dropLines) LINES.add(e.pos.x, 0.15, e.pos.z, e.pos.x, POLE_H * grow, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
         GLOW.dot(_fx.set(e.pos.x, 1.2, e.pos.z), 1.1, c, 0.9 * a);
-        e.label.position.set(e.pos.x, CFG.dropLines ? POLE_H : 3, e.pos.z);
+        e.label.position.set(e.pos.x, CFG.dropLines ? POLE_H * grow : 3, e.pos.z);
       } else {
         drawGlyph(g, e.pos, e.plane.dir, e.plane.up, e.ty.scale, c, a, 2);
-        if (CFG.dropLines) LINES.drop(e.pos, c, 0.8 * a, 2.2);
+        if (CFG.dropLines) LINES.drop(e.pos, c, 0.8 * a, 2.2, grow);
         e.label.position.copy(e.pos).y += 2.5;
       }
-      e.label.visible = CFG.labels && e.state !== 'fade';
+      e.label.visible = CFG.labels && e.state !== 'fade' && shown;
       if (e.state === 'struck') {
         const r = Math.max(2.5, CAM.distTo(e.pos) * 0.022), blink = e.t < 0.6 ? (Math.floor(e.t * 10) % 2 ? 0.4 : 1) : 1;
         LINES.cross(e.ground ? _fx.set(e.pos.x, 2.5, e.pos.z) : e.pos, r, c, blink);
       }
     }
   }
+  /* appearing: a radar ping — a ring (flat on the ground / facing the camera for aircraft) and a smaller echo */
+  appear(e, c) {
+    const u = e.t / APPEAR_T, p = e.ground ? _fx.set(e.pos.x, 0.2, e.pos.z) : e.pos;
+    LINES.circle(p, 2 + 14 * easeOut(u), c, (1 - u) * 0.9, e.ground, 1.8, 28);
+    if (e.t > 0.25) { const v = (e.t - 0.25) / (APPEAR_T - 0.25); LINES.circle(p, 1 + 9 * easeOut(v), c, (1 - v) * 0.6, e.ground, 1.4, 22); }
+  }
+  /* appearing: the name types out once the pole is up; false while nothing is shown yet */
+  typed(e) {
+    const k = clamp((e.t / APPEAR_T - 0.45) / 0.5, 0, 1), n = Math.ceil(e.name.length * k);
+    if (!n) return false;
+    setLabel(e.label, e.name.slice(0, n), this.css, false);
+    return true;
+  }
   recolor() {
-    for (const pool of Object.values(this.slots)) for (const s of pool) { if (s.trail) s.trail.recolor(this.color); if (s.inUse) setLabel(s.label, s.name, cssOf(this.color), s.state !== 'live'); }
+    this.css = cssOf(this.color);
+    for (const pool of Object.values(this.slots)) for (const s of pool) { if (s.trail) s.trail.recolor(this.color); if (s.inUse) setLabel(s.label, s.name, this.css, s.state === 'struck' || s.state === 'fade'); }
   }
   shift(dx, dz) {
     for (const pool of Object.values(this.slots)) for (const s of pool) { s.pos.x -= dx; s.pos.z -= dz; if (s.trail) s.trail.shift(dx, dz); }
