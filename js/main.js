@@ -66,6 +66,7 @@ function init() {
 function resize() {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   camera.aspect = window.innerWidth / Math.max(1, window.innerHeight); camera.updateProjectionMatrix();
+  setLabelScale(camera.aspect);
 }
 
 /* ---- simulation step (sim time T) ---- */

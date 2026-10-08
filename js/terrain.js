@@ -100,6 +100,8 @@ const TERRAIN = {
     this.mesh.position.set(Math.round((focus.x + ox) / S) * S - ox, 0, Math.round((focus.z + oz) / S) * S - oz);
     this.uniforms.uOrigin.value.set(wrapP(WORLD.origin.x), wrapP(WORLD.origin.z));
     this.uniforms.uCam.value.copy(cam.position);
-    const far = Math.min(GROUND_STEP * GROUND_CELLS * 0.45, Math.max(1800, cam.position.y * 4 + 1200)); this.uniforms.uFog.value.set(far * 0.3, far);   // fogged out before the mesh ends
+    // fogged out before the mesh ends; the ground around the focus stays clear however far the camera is (zoom, phones)
+    const dF = cam.position.distanceTo(focus), far = Math.min(GROUND_STEP * GROUND_CELLS * 0.45, Math.max(1800, cam.position.y * 4 + 1200, dF * 2.5));
+    this.uniforms.uFog.value.set(Math.min(far * 0.8, Math.max(far * 0.3, dF * 1.15)), far);
   }
 };

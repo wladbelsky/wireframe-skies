@@ -104,3 +104,16 @@ for (const [name, w, h] of [['phone portrait', 390, 844], ['phone landscape', 84
     expect(r.peace, 'all four planes in frame (peace)').toBeGreaterThan(0.9);
     expect(r.combat, 'the hero in frame (combat)').toBeGreaterThan(0.9);
   });
+
+test('phone portrait: names fit the screen, the ground under the flight is not fogged (zoomed out too)', async ({ wp, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.props({ zoom: 40 }); __t.sim(20, { audio: false }); draw();
+    const px = s => s.scale.x / (2 * Math.tan(camera.fov * DEG / 2)) * innerHeight;   // sprite width in CSS px
+    const fog = TERRAIN.uniforms.uFog.value, dF = camera.position.distanceTo(CAM.focus);
+    return { labelW: Math.max(...SQUAD.planes.map(p => px(p.label))) / innerWidth, dF, fogNear: fog.x };
+  });
+  expect(r.labelW, 'widest name / screen width').toBeLessThan(0.35);
+  expect(r.dF, 'focus nearer than where the fog starts').toBeLessThan(r.fogNear);
+});

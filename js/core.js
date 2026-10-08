@@ -83,12 +83,18 @@ function labelMat(text, color, struck) {
 }
 /* label sprite: bottom-left corner at the anchor; setLabel swaps its material */
 const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the glow included)
-function makeLabel() { const s = new THREE.Sprite(); s.center.set(0.02, 0.3); s.renderOrder = 10; return s; }
+/* label size factor: names are a share of the screen height, so on screens narrower than square (phones in
+   portrait) they shrink with the aspect (down to LABEL_MIN_K), or they would be as wide as the screen */
+const LABEL_MIN_K = 0.55, LABEL_SPRITES = [];   // every label sprite ever made (pooled with its unit: bounded)
+let LABEL_K = 1;
+function makeLabel() { const s = new THREE.Sprite(); s.center.set(0.02, 0.3); s.renderOrder = 10; LABEL_SPRITES.push(s); return s; }
+function sizeLabel(s) { const a = s.material.userData.aspect; if (a) s.scale.set(LABEL_SCALE * LABEL_K * a, LABEL_SCALE * LABEL_K, 1); }
+function setLabelScale(aspect) { LABEL_K = clamp(aspect, LABEL_MIN_K, 1); for (const s of LABEL_SPRITES) sizeLabel(s); }
 function setLabel(s, text, color, struck) {
   const m = labelMat(text, color, struck), old = s.material; if (old === m) return;
   m.userData.refs++;
   if (old.userData.key && --old.userData.refs <= 0) { LABEL_CACHE.delete(old.userData.key); old.map.dispose(); old.dispose(); }
-  s.material = m; s.scale.set(LABEL_SCALE * m.userData.aspect, LABEL_SCALE, 1);
+  s.material = m; sizeLabel(s);
 }
 
 /* ===== Line-segment builder (glyphs) ===== */
