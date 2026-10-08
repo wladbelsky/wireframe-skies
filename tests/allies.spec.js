@@ -21,7 +21,12 @@ test('allies fight alongside the flight and are never hit', async ({ wp }) => {
   const r = await wp.run(() => {
     __t.forceFight();
     const v = [];
-    for (let k = 0; k < 30; k++) { if (k % 5 === 0) ALLIES.groupT = 0; v.push(...__t.sim(10, { audio: true }).violations); }
+    const c = new THREE.Vector3();
+    for (let k = 0; k < 30; k++) {
+      // an allied pair joins the flight every 30 s (groups ahead of the route may never meet the enemy on some seeds)
+      if (k % 3 === 0 && ALLIES.alive <= ALLY_CAP - 2) for (let i = 0; i < 2; i++) ALLIES.spawn('fighter', SQUAD.centroid(c).add(new THREE.Vector3(i * 12, 20, 0)), ROUTE.heading, `TEST ${i + 1}`);
+      v.push(...__t.sim(10, { audio: true }).violations);
+    }
     return { v: v.slice(0, 10), s: __t.stats(), allyKills: ALLIES.kills };
   });
   expect(r.v).toEqual([]);

@@ -1,9 +1,12 @@
 'use strict';
 /* ===== Camera =====
    'cinematic': a director picks a shot (azimuth relative to the flight's heading, elevation, distance, slow drift)
-   and blends to the next one every CFG.shotLen s (±40 %). 'fixed': one shot from the properties.
-   The focus is the flight's centroid, pulled toward the fight in combat; everything is smoothed, so maneuvers
-   never jerk the view. CAM.right / CAM.upv are the screen axes (camera-facing crosses in LINES). */
+   and blends to the next one every CFG.shotLen s (±20 %). 'fixed': one shot from the properties.
+   The focus is the flight's centroid; in combat one plane (the hero, kept for a whole shot / CFG.shotLen s) and the
+   area it fights in. The hero's targets change every few seconds, so they only move a slow helper point (aux), and the
+   focus follows with a critically damped spring (FOCUS_T): no jumps, no jerks — ease in, ease out.
+   CAM.right / CAM.upv are the screen axes (camera-facing crosses in LINES). */
+const FOCUS_T = 1.6, AUX_RATE = 0.25, AUX_W = 0.3;   // focus smoothing time (s), helper follow rate (1/s), its weight
 const SHOTS = [
   { az: 180, el: 22, dist: 115, drift: 0 },     // chase
   { az: 140, el: 32, dist: 135, drift: 1.2 },   // rear quarter
@@ -14,13 +17,18 @@ const SHOTS = [
   { az: 255, el: 44, dist: 165, drift: 1.8 }    // other side, from above
 ];
 const _cf = new V3(), _ce = new V3(), _co = new V3(), _cs = new V3();
+/* critically damped spring toward target (smooth time T): value and velocity are updated in place */
+function smoothDamp(cur, target, vel, T, dt) {
+  const w = 2 / T, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  for (const k of ['x', 'y', 'z']) { const ch = cur[k] - target[k], tmp = (vel[k] + w * ch) * dt; vel[k] = (vel[k] - w * tmp) * e; cur[k] = target[k] + (ch + tmp) * e; }
+}
 const CAM = {
-  focus: new V3(), heading: 0, cur: { az: 180, el: 25, dist: 130 }, shot: SHOTS[1], shotT: 0, drift: 0, combatK: 0,
+  focus: new V3(), focusV: new V3(), aux: new V3(), heading: 0, cur: { az: 180, el: 25, dist: 130 }, shot: SHOTS[1], shotT: 0, drift: 0, combatK: 0,
   right: new V3(1, 0, 0), upv: new V3(0, 1, 0), ready: false,
-  hero: null, heroT: 0,   // in combat the camera follows one plane (a new one with each shot) and frames its target too
+  hero: null, heroT: 0,   // in combat the camera follows one plane (a new one with each shot) and the area it fights in
   nextShot() {
     const others = SHOTS.filter(s => s !== this.shot); this.shot = pick(others);
-    this.shotT = CFG.shotLen * rand(0.6, 1.4) * (SQUAD.engaged ? 0.6 : 1); this.drift = 0;
+    this.shotT = CFG.shotLen * rand(0.8, 1.2); this.drift = 0;
     this.pickHero();
   },
   pickHero() {
@@ -32,20 +40,19 @@ const CAM = {
     return { az: this.shot.az + this.drift, el: this.shot.el, dist: this.shot.dist };
   },
   update(dt) {
-    // focus: the flight's centroid in peace; in combat the hero plane, pulled toward its target
+    // focus: the flight's centroid in peace; in combat the hero plane, leaning toward the slow helper point
     SQUAD.centroid(_cf);
-    this.combatK += ((SQUAD.engaged ? 1 : 0) - this.combatK) * Math.min(1, dt * 0.5);
+    this.combatK += ((SQUAD.engaged ? 1 : 0) - this.combatK) * Math.min(1, dt * 0.4);
     if (!this.hero) this.pickHero();
-    if (this.combatK > 0.001) {
-      const h = this.hero; _ce.copy(h.pos);
-      if (h.target && h.target.pos.distanceTo(h.pos) < 320) _ce.lerp(h.target.pos, 0.35);
-      _cf.lerp(_ce, this.combatK);
-    }
-    if (!this.ready) { this.focus.copy(_cf); this.heading = ROUTE.heading; this.cur = Object.assign({}, this.target()); this.ready = true; }
-    this.focus.lerp(_cf, 1 - Math.exp(-dt * 1.6));
+    const h = this.hero, t = h.target;
+    _ce.copy(t && t.alive && t.pos.distanceTo(h.pos) < 320 ? t.pos : h.pos);
+    if (!this.ready) { this.aux.copy(_ce); this.focus.copy(_cf); this.focusV.set(0, 0, 0); this.heading = ROUTE.heading; this.cur = Object.assign({}, this.target()); this.ready = true; }
+    this.aux.lerp(_ce, 1 - Math.exp(-dt * AUX_RATE));
+    if (this.combatK > 0.001) _cf.lerp(_ce.copy(h.pos).lerp(this.aux, AUX_W), this.combatK);
+    smoothDamp(this.focus, _cf, this.focusV, FOCUS_T, dt);
     this.heading = approachAngle(this.heading, ROUTE.heading, Math.abs(angleWrap(ROUTE.heading - this.heading)) * dt * 0.4 + 0.0005);
     if (CFG.camMode !== 'fixed') { this.shotT -= dt; this.drift += this.shot.drift * dt; if (this.shotT <= 0) this.nextShot(); }
-    else if ((this.heroT -= dt) <= 0) { this.heroT = rand(10, 18); this.pickHero(); }   // fixed: only the hero changes
+    else if ((this.heroT -= dt) <= 0) { this.heroT = CFG.shotLen * rand(0.8, 1.2); this.pickHero(); }   // fixed: only the hero changes
     const tg = this.target(), k = 1 - Math.exp(-dt * 0.45);
     this.cur.az += angleWrap((tg.az - this.cur.az) * DEG) / DEG * k; this.cur.el = lerp(this.cur.el, tg.el, k); this.cur.dist = lerp(this.cur.dist, tg.dist, k);
     this.place();
@@ -62,5 +69,5 @@ const CAM = {
   distTo(p) { return camera.position.distanceTo(p); },
   /* is p in front of the camera and inside the frame, margin m (0..1 of the half-size) from the edges */
   onScreen(p, m) { _cs.copy(p).project(camera); return _cs.z < 1 && Math.abs(_cs.x) < 1 - (m || 0) && Math.abs(_cs.y) < 1 - (m || 0); },
-  shift(dx, dz) { this.focus.x -= dx; this.focus.z -= dz; camera.position.x -= dx; camera.position.z -= dz; }
+  shift(dx, dz) { this.focus.x -= dx; this.focus.z -= dz; this.aux.x -= dx; this.aux.z -= dz; camera.position.x -= dx; camera.position.z -= dz; }
 };

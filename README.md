@@ -35,7 +35,7 @@ Wallpaper Engine → **Open from File** → `project.json` from this folder.
 |---|---|
 | Camera | *Cinematic* (default): the camera cuts between shots — chase, rear quarter, side, high orbit, head-on, wide — and in combat follows one plane and its target. *Fixed*: one angle of your choice. |
 | Camera zoom, % | closer / further |
-| Shot length, s | cinematic camera: how long a shot lasts on average |
+| Shot length, s | how long the camera keeps one angle and, in combat, one plane (±20 %); the view always glides, never jumps |
 | Camera direction / height | fixed camera: azimuth relative to the flight's heading (180 = behind) and elevation |
 | Audio sensitivity, % | beat detection sensitivity |
 | Enemy density, % | how many enemies a fight brings (0 = none, the flight just flies) |

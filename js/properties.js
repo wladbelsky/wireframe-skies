@@ -33,12 +33,11 @@ const WE_PROPERTIES = {
  },
  "shotlength": {
   "order": 3,
-  "text": "Shot length, s",
+  "text": "Shot length, s (how long the camera keeps one angle / one plane)",
   "type": "slider",
   "min": 8,
   "max": 60,
-  "value": 22,
-  "condition": "cameramode.value == 'cinematic'"
+  "value": 22
  },
  "fixedazimuth": {
   "order": 4,

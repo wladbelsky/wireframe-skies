@@ -62,3 +62,24 @@ test('a new unit appears like a radar contact: ping, growing pole, name typed ou
   expect(r.name.startsWith(r.mid) && r.mid.length > 0 && r.mid.length < r.name.length, `typing: "${r.mid}" of "${r.name}"`).toBe(true);
   expect(r.end).toBe(r.name);
 });
+
+test('camera in combat: the hero changes only with the shot, the focus never jerks', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.props({ shotlength: 30 });
+    __t.forceFight(); __t.sim(10, { audio: true });
+    let heroes = 0, hero = CAM.hero, spikes = 0, inSpike = false, maxA = 0;
+    const v0 = new THREE.Vector3(), prev = CAM.focus.clone(), vel = new THREE.Vector3();
+    for (let i = 0; i < 2400; i++) {   // 2 minutes
+      __t.sim(0.05, { audio: true, check: false });
+      vel.subVectors(CAM.focus, prev).divideScalar(0.05); prev.copy(CAM.focus);
+      const a = vel.distanceTo(v0) / 0.05; v0.copy(vel);
+      if (i > 2) maxA = Math.max(maxA, a);
+      const spike = a > 150; if (spike && !inSpike) spikes++; inSpike = spike;
+      if (CAM.hero !== hero) { heroes++; hero = CAM.hero; }
+    }
+    return { heroes, spikes, maxA: Math.round(maxA) };
+  });
+  expect(r.heroes, 'hero changes in 120 s with 30 s shots').toBeLessThanOrEqual(6);
+  expect(r.spikes, `sharp focus kicks (max ${r.maxA} u/s²)`).toBeLessThanOrEqual(r.heroes + 1);
+});
