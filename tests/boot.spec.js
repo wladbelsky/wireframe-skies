@@ -1,0 +1,40 @@
+// Start-up: the page boots cleanly in Wallpaper Engine mode and in a plain browser
+const { test, expect } = require('./support/harness');
+
+test('boots in Wallpaper Engine mode with WebGL2 and a four-ship flight', async ({ wp }) => {
+  await wp.boot();
+  const info = await wp.run(() => ({
+    webgl2: renderer.capabilities.isWebGL2,
+    planes: SQUAD.planes.length,
+    labels: SQUAD.planes.map(p => [...LABEL_CACHE.entries()].find(([, m]) => m === p.label.material)[0].split('|')[0]),
+    drawer: !!document.getElementById('cfg')
+  }));
+  expect(info.webgl2).toBe(true);
+  expect(info.planes).toBe(4);
+  expect(info.labels).toEqual(['STRIDER 1', 'STRIDER 2', 'STRIDER 3', 'STRIDER 4']);
+  expect(info.drawer, 'no settings drawer inside Wallpaper Engine').toBe(false);
+});
+
+test('boots in a normal browser with the settings drawer and stays clean for a minute', async ({ wp }) => {
+  await wp.boot({ we: false });
+  const r = await wp.run(() => ({ demo: AUD.demo, buttons: document.querySelectorAll('button').length }));
+  expect(r.demo).toBe(true);
+  expect(r.buttons, 'the settings drawer adds its controls').toBeGreaterThan(3);
+  const res = await wp.sim(60);
+  expect(res.violations).toEqual([]);
+});
+
+test('properties apply: squadron name, colours, camera mode', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.props({ squadname: ' gar<l>m ', friendcolor: '0 0 1', cameramode: 'fixed', fixedazimuth: 90 });
+    __t.sim(3);
+    const name = [...LABEL_CACHE.entries()].find(([, m]) => m === SQUAD.planes[2].label.material)[0];
+    return { name, color: SQUAD.lineMat.color.getHexString(), trail: SQUAD.planes[0].trail.color.getHexString(), mode: CFG.camMode, az: CAM.target().az };
+  });
+  expect(r.name.split('|')[0]).toBe('GARLM 3');
+  expect(r.color).toBe('0000ff');
+  expect(r.trail).toBe('0000ff');
+  expect(r.mode).toBe('fixed');
+  expect(r.az).toBe(90);
+});
