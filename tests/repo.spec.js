@@ -63,6 +63,10 @@ test('every WE property is read by applyUserProperties', () => {
   for (const k of props) expect(main, `has('${k}') in main.js`).toContain(`has('${k}')`);
 });
 
-test('README links the live demo', () => {
-  expect(read('README.md')).toContain('https://wladbelsky.github.io/wireframe-skies/');
+test('README links the live demo and the Workshop page of project.json', () => {
+  const r = read('README.md'), p = JSON.parse(read('project.json'));
+  expect(r).toContain('https://wladbelsky.github.io/wireframe-skies/');
+  expect(p.workshopid).toBeTruthy();
+  expect(p.workshopurl).toBe('steam://url/CommunityFilePage/' + p.workshopid);
+  expect(r).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=' + p.workshopid);
 });

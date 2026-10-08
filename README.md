@@ -1,6 +1,7 @@
 # Wireframe Skies — web wallpaper for Wallpaper Engine
 
 **[▶ Live demo](https://wladbelsky.github.io/wireframe-skies/)** — runs in the browser (⚙ SETTINGS → demo beat, or play an audio file).
+**[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3815966692)** — subscribe in Wallpaper Engine.
 
 ![preview](preview.jpg)
 
@@ -27,7 +28,8 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
 
 ## Install
 
-Wallpaper Engine → **Open from File** → `project.json` from this folder.
+Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3815966692), or in Wallpaper Engine
+→ **Open from File** → `project.json` from this folder.
 
 ## Settings
 
