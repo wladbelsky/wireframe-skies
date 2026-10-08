@@ -37,7 +37,7 @@ class Force {
     const s = this.slot(type); if (!s) return null;
     s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
-    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null;
+    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false;
     setLabel(s.label, s.name, cssOf(this.color), false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
     else { s.pos.set(pos.x, 0, pos.z); s.vel.set(0, 0, 0); }

@@ -1,7 +1,9 @@
 'use strict';
 /* ===== Enemies: types, waves, behaviour, hostile fire =====
    Waves spawn ahead of the flight only while AUD.fighting: ground groups where the map ahead is land, ships where it
-   is sea, air groups anywhere. Air units withdraw when the fight is over. Hostile missiles always lose lock. */
+   is sea, air groups anywhere. Air units withdraw when the fight is over. Hostile missiles always lose lock.
+   An air group is one aircraft type under one name; ACE_P of fighter / attack groups are aces: a squadron callsign
+   (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots. */
 const ENEMY_TYPES = {
   fighter:   { cls: 'air', glyph: 'arrow', scale: 2.0, hp: 1, speed: 23, turn: 0.55, names: ['MIG-29A', 'SU-30', 'SU-27', 'J-10C'], w: 4, fires: 'missile', alt: [50, 150], max: 10 },
   bomber:    { cls: 'air', glyph: 'heavy', scale: 1.7, hp: 3, speed: 15, turn: 0.18, names: ['TU-22M', 'H-6K'], w: 1, alt: [70, 130], max: 4 },
@@ -15,6 +17,7 @@ const ENEMY_TYPES = {
   destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', max: 3 }
 };
 
+const ACE_P = 0.15, ACE_CALLSIGNS = ['SHADOW', 'RAVEN', 'SPECTRE', 'NOMAD', 'WRAITH', 'JACKAL', 'MANTIS', 'BANSHEE', 'COYOTE', 'HYDRA'];
 const _e = new V3(), _r = new V3(), _q = new V3(), _b = new V3();
 class EnemyForce extends Force {
   constructor() { super(ENEMY_TYPES, 'enemy'); this.waveT = 0; this.fireT = 3; this.missiles = 0; this.wasFighting = false; }
@@ -40,9 +43,13 @@ class EnemyForce extends Force {
     // they come at the flight, roughly
     const toward = Math.atan2(ROUTE.pos.x - _e.x, ROUTE.pos.z - _e.z) + rand(-0.5, 0.5);
     _r.set(Math.cos(toward), 0, -Math.sin(toward)); _b.set(Math.sin(toward), 0, Math.cos(toward));
+    // one type, one name for the whole group — or an ace squadron with its own callsign
+    const ace = (type === 'fighter' || type === 'attacker') && Math.random() < ACE_P, name = ace ? pick(ACE_CALLSIGNS) : pick(ty.names);
     for (let i = 0; i < Math.min(n, type === 'bomber' ? 2 : 4); i++) {
       _q.copy(_e).addScaledVector(_r, (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 12).addScaledVector(_b, -Math.ceil(i / 2) * 9);
-      const s = this.spawn(type, _q, toward); if (s) s.mode = type === 'heli' ? 'hover' : 'merge';
+      const s = this.spawn(type, _q, toward, ace ? `${name} ${i + 1}` : name); if (!s) continue;
+      s.mode = type === 'heli' ? 'hover' : 'merge';
+      if (ace) { s.ace = true; s.hp += 1; }
     }
   }
 
@@ -73,11 +80,11 @@ class EnemyForce extends Force {
     else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - e.pos.y) * 0.01; }
     else {   // fighters: merge, then dogfight with jinks
       if (e.mode === 'merge' && tgt && e.pos.distanceTo(tgt.pos) < 180) { e.mode = 'dogfight'; e.modeT = rand(3, 6); }
-      if (e.mode === 'dogfight' && e.modeT <= 0) { e.modeT = rand(4, 8); if (Math.random() < 0.5) tryManeuver(pl, ['breakTurn', 'barrel', 'splitS', 'immelmann']); }
+      if (e.mode === 'dogfight' && e.modeT <= 0) { e.modeT = e.ace ? rand(2.5, 5) : rand(4, 8); if (Math.random() < (e.ace ? 0.8 : 0.5)) tryManeuver(pl, ['breakTurn', 'barrel', 'splitS', 'immelmann']); }
       _q.subVectors(tgt ? tgt.pos : ROUTE.pos, e.pos).normalize();
       if (e.pos.distanceTo(ROUTE.pos) > 600) _q.subVectors(ROUTE.pos, e.pos).normalize();
     }
-    this.steerAir(e, _q, dt, e.mode === 'dogfight' ? 1.5 : 1);
+    this.steerAir(e, _q, dt, (e.mode === 'dogfight' ? 1.5 : 1) * (e.ace ? 1.3 : 1));
   }
   nearestFriend(p, maxD) { return nearestOf(SQUAD.planes, p, maxD); }
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
@@ -101,7 +108,7 @@ class EnemyForce extends Force {
     MISSILES.fire({ p: _q, d: _r, speed: s.plane ? s.plane.speed + 5 : 12, target: f, hit: false, enemy: true });
     GLOW.spawn(_q, { c: PAL.enemy, s: 3, life: 0.3 });
     SQUAD.threat(f);
-    s.cd = rand(5, 9); this.fireT = rand(2, 4.5); this.missiles++;
+    s.cd = s.ace ? rand(3, 5) : rand(5, 9); this.fireT = rand(2, 4.5); this.missiles++;
   }
 }
 const ENEMIES = new EnemyForce();

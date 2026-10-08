@@ -89,3 +89,29 @@ test('a missile never follows a recycled enemy slot; a full missile pool leaves 
   expect(r.shot).toBe(false);
   expect(r.incoming).toBe(0);
 });
+
+test('an enemy air group is one type under one name; some fighter / attack groups are aces', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const out = { groups: 0, mixed: [], aces: 0, aceTypes: new Set(), aceNames: [] };
+    for (let k = 0; k < 400; k++) {
+      const n0 = ENEMIES.list.length; ENEMIES.airGroup(4);
+      const g = ENEMIES.list.slice(n0); if (!g.length) continue;
+      out.groups++;
+      const types = new Set(g.map(e => e.type)), ace = g[0].ace;
+      if (types.size !== 1 || g.some(e => e.ace !== ace)) out.mixed.push(g.map(e => e.type + ':' + e.name).join(','));
+      if (ace) {
+        out.aces++; out.aceTypes.add(g[0].type);
+        const cs = g[0].name.split(' ')[0];
+        if (!ACE_CALLSIGNS.includes(cs) || g.some((e, i) => e.name !== `${cs} ${i + 1}` || e.hp !== ENEMY_TYPES[e.type].hp + 1)) out.mixed.push('ace ' + g.map(e => e.name + '/' + e.hp).join(','));
+      } else if (new Set(g.map(e => e.name)).size !== 1) out.mixed.push(g.map(e => e.name).join(','));
+      for (const e of g) ENEMIES.free(e);
+    }
+    return { groups: out.groups, mixed: out.mixed.slice(0, 5), aces: out.aces, aceTypes: [...out.aceTypes] };
+  });
+  expect(r.mixed).toEqual([]);
+  // fighter + attack groups are ~70 % of the weight, 15 % of them aces → ~10 % of all groups
+  expect(r.aces, `aces in ${r.groups} groups`).toBeGreaterThan(r.groups * 0.05);
+  expect(r.aces).toBeLessThan(r.groups * 0.2);
+  for (const t of r.aceTypes) expect(['fighter', 'attacker']).toContain(t);
+});

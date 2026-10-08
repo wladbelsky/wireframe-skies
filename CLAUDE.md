@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=19`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=20`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -96,6 +96,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Ground / sea units: a flat marker, a pole of `POLE_H` up to the name, a dot near the bottom (the replay look).
   Aircraft: the glyph in its attitude, an altitude line to a ground cross, the name beside it.
 - Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
+  An air group is one type under one name; `ACE_P` of fighter / attack groups are aces (`e.ace`): an `ACE_CALLSIGNS`
+  callsign + number, +1 hp, sharper turns, more jinks, shorter missile cooldown.
 - Allies (`CFG.allies`): a group every 35–80 s in peace and in combat (fleet at sea, column on land, a fighter pair /
   four with a shared callsign, or an AWACS), at most `ALLY_CAP` alive. In a fight allied ships / SAMs / fighters fire
   on mid / high beats (rate-limited); their missiles always hit. Allies are never targeted and never struck.
