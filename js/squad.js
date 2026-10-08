@@ -7,6 +7,7 @@
    Plane modes: form (slot flying) | engage (attack run on p.target) | reposition (after a shot / a break, maneuvers) |
    rejoin (back to the slot after a fight). Evading a missile is a break turn + flares, then reposition. */
 const CRUISE = 24;
+const SAME_SEA_T = 60, SAME_LAND_T = 150, SCOUT_R = 3000;   // s over open sea / land before the route heads for a coast; look-out range
 const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first)
   finger:  [[0, 0, 0], [-9, 0, -7], [9, 0, -7], [18, 0, -14]],
   diamond: [[0, 0, 0], [-9, -1, -7], [9, -1, -7], [0, -2, -14]],
@@ -16,17 +17,35 @@ const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first
 };
 const ROUTE = {
   pos: new V3(0, 70, 0), heading: 0, tgtHeading: 0, alt: 70, tgtAlt: 70, speed: CRUISE, turnT: 25, altT: 12,
-  fwd: new V3(0, 0, 1), right: new V3(-1, 0, 0), combat: false,
+  fwd: new V3(0, 0, 1), right: new V3(-1, 0, 0), combat: false, overLand: false, sameT: 0, scouted: false,
   get cruise() { return CRUISE * CFG.speed / 100; },
   update(dt) {
     this.turnT -= dt; this.altT -= dt;
-    if (this.turnT <= 0) { this.turnT = rand(18, 50); this.tgtHeading = this.heading + (Math.random() < 0.5 ? -1 : 1) * rand(15, 75) * DEG; }
+    // variety: open sea (or land) that goes on too long → turn toward the nearest coast
+    const over = TERRAIN.land(this.pos.x, this.pos.z) > 0;
+    if (over !== this.overLand) { this.overLand = over; this.sameT = 0; this.scouted = false; } else this.sameT += dt;
+    if (!this.scouted && this.sameT > (over ? SAME_LAND_T : SAME_SEA_T)) { this.scouted = true; this.turnT = Math.min(this.turnT, 0); }
+    if (this.turnT <= 0) {
+      this.turnT = rand(18, 50);
+      const coast = this.scouted && this.sameT > 1 ? this.scout(!over) : null;
+      this.tgtHeading = coast != null ? coast : this.heading + (Math.random() < 0.5 ? -1 : 1) * rand(15, 75) * DEG;
+    }
     if (this.altT <= 0) { this.altT = rand(10, 30); this.tgtAlt = rand(38, 140); }
     this.heading = approachAngle(this.heading, this.tgtHeading, 0.06 * dt);
     this.alt += clamp(this.tgtAlt - this.alt, -3.5 * dt, 3.5 * dt);
     const sp = this.combat ? this.cruise * 0.45 : this.cruise; this.speed += clamp(sp - this.speed, -6 * dt, 4 * dt);
     this.fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading)); this.right.set(-Math.cos(this.heading), 0, Math.sin(this.heading));
     this.pos.addScaledVector(this.fwd, this.speed * dt); this.pos.y = this.alt;
+  },
+  /* the heading (within ±90°) that reaches land (wantLand) or sea soonest, or null if none within SCOUT_R */
+  scout(wantLand) {
+    let best = null, bd = Infinity;
+    for (let a = -90; a <= 90; a += 15) {
+      const h = this.heading + a * DEG, sx = Math.sin(h), sz = Math.cos(h);
+      for (let d = 150; d <= SCOUT_R && d < bd; d += 150)
+        if ((TERRAIN.land(this.pos.x + sx * d, this.pos.z + sz * d) > 0) === wantLand) { if (d + Math.abs(a) < bd) { bd = d + Math.abs(a); best = h; } break; }
+    }
+    return best;
   },
   /* world position of a formation offset */
   slot(o, out) { return out.copy(this.pos).addScaledVector(this.right, o[0]).addScaledVector(this.fwd, o[2]).setY(this.pos.y + o[1]); },

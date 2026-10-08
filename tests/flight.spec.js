@@ -4,20 +4,22 @@ const { test, expect } = require('./support/harness');
 test('20 minutes of peace: formation, altitude changes, new landscape, floating origin', async ({ wp }) => {
   await wp.boot();
   const r = await wp.run(() => {
-    const out = { violations: [], slotErr: [], alts: [], land: 0, sea: 0, headings: [], rolls: 0 };
+    const out = { violations: [], slotErr: [], alts: [], land: 0, sea: 0, headings: [], rolls: 0, seaRun: 0, longestSea: 0, crossings: 0, prev: null };
     const sl = new THREE.Vector3();
     __t.sim(30, { audio: false });
     for (let k = 0; k < 1170; k++) {             // 19.5 min, one sample per second
       const res = __t.sim(1, { audio: false }); out.violations.push(...res.violations);
       for (const p of SQUAD.planes.slice(1)) if (!p.maneuvering) out.slotErr.push(ROUTE.slot(FORMATIONS[SQUAD.form][p.idx], sl).distanceTo(p.pos));
       out.alts.push(ROUTE.alt); out.headings.push(ROUTE.heading);
-      if (TERRAIN.land(ROUTE.pos.x, ROUTE.pos.z) > 0) out.land++; else out.sea++;
+      const over = TERRAIN.land(ROUTE.pos.x, ROUTE.pos.z) > 0;
+      if (over) { out.land++; out.seaRun = 0; } else { out.sea++; out.longestSea = Math.max(out.longestSea, ++out.seaRun); }
+      if (out.prev !== null && over !== out.prev) out.crossings++; out.prev = over;
       if (SQUAD.planes.some(p => p.maneuvering)) out.rolls++;
     }
     out.slotErr.sort((a, b) => a - b);
     return { violations: out.violations.slice(0, 10), p50: out.slotErr[Math.floor(out.slotErr.length * 0.5)], p95: out.slotErr[Math.floor(out.slotErr.length * 0.95)],
       altRange: Math.max(...out.alts) - Math.min(...out.alts), headRange: Math.max(...out.headings) - Math.min(...out.headings),
-      land: out.land, sea: out.sea, shifts: WORLD.shifts, rolls: out.rolls, enemies: ENEMIES.spawned, modes: SQUAD.planes.map(p => p.mode) };
+      land: out.land, sea: out.sea, longestSea: out.longestSea, crossings: out.crossings, shifts: WORLD.shifts, rolls: out.rolls, enemies: ENEMIES.spawned, modes: SQUAD.planes.map(p => p.mode) };
   });
   expect(r.violations).toEqual([]);
   expect(r.p50, 'median distance from the formation slot').toBeLessThan(6);
@@ -26,6 +28,8 @@ test('20 minutes of peace: formation, altitude changes, new landscape, floating 
   expect(r.headRange, 'the route turns').toBeGreaterThan(0.5);
   expect(r.land, 'flies over land').toBeGreaterThan(10);
   expect(r.sea, 'flies over sea').toBeGreaterThan(10);
+  expect(r.longestSea, 'seconds of open sea in a row (the route heads for a coast)').toBeLessThan(200);
+  expect(r.crossings, 'coastlines crossed').toBeGreaterThan(8);
   expect(r.shifts, 'the floating origin recentred').toBeGreaterThan(5);
   expect(r.rolls, 'the odd roll / loop in peace').toBeGreaterThan(0);
   expect(r.enemies, 'no enemies without music').toBe(0);

@@ -56,7 +56,12 @@ class EnemyForce extends Force {
       if (this.waveT <= 0 && this.alive < want) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
-    for (const e of this.list) if (e.state === 'live' && !AUD.armed && e.plane && e.mode !== 'leave') { e.mode = 'leave'; e.modeT = rand(4, 8); }
+    // after the fight: aircraft fly off (fly → leave), ground units and ships fade out a little later
+    for (const e of this.list) {
+      if (e.state !== 'live' || AUD.armed) continue;
+      if (e.mode !== 'leave') { e.mode = 'leave'; e.modeT = e.plane ? rand(4, 8) : rand(25, 45); }
+      else if (!e.plane && (e.modeT -= dt) <= 0) this.vanish(e);
+    }
     super.update(dt);
   }
   fly(e, dt) {

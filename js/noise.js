@@ -27,18 +27,18 @@ const wrapP = v => ((v % NOISE_P) + NOISE_P) % NOISE_P;
    relief(x, z): ≥ 0, contour lines are drawn on it (mountains get many).
    city(x, z): 0..1 built-up area (low land only). */
 function landField(x, z) {
-  const big = vnoise(x, z, 8192, 1);                                     // continents vs oceans
-  const f = vnoise(x, z, 2048, 2) * 0.5 + vnoise(x, z, 1024, 3) * 0.27 + vnoise(x, z, 512, 4) * 0.15 + vnoise(x, z, 256, 5) * 0.08;
-  return f - 0.5 + (big - 0.5) * 0.7;
+  const big = vnoise(x, z, 4096, 1);                                     // continents vs oceans
+  const f = vnoise(x, z, 1024, 2) * 0.5 + vnoise(x, z, 512, 3) * 0.27 + vnoise(x, z, 256, 4) * 0.15 + vnoise(x, z, 128, 5) * 0.08;
+  return f - 0.5 + (big - 0.5) * 0.5;
 }
-function mountField(x, z) { const m = vnoise(x, z, 4096, 6); return m * m * (3 - 2 * m); }
+function mountField(x, z) { const m = vnoise(x, z, 2048, 6); return m * m * (3 - 2 * m); }
 function reliefField(x, z, land) {
   const mt = clamp((mountField(x, z) - 0.45) / 0.3, 0, 1);
   const r = vnoise(x, z, 512, 7) * 0.6 + vnoise(x, z, 128, 8) * 0.3 + vnoise(x, z, 64, 9) * 0.1;
   return Math.max(land, 0) * (1.2 + mt * 5) + mt * r * Math.min(1, Math.max(land, 0) * 12) * 1.6;
 }
 function cityField(x, z, land) {
-  const c = clamp((vnoise(x, z, 1024, 10) - 0.62) / 0.12, 0, 1);
+  const c = clamp((vnoise(x, z, 512, 10) - 0.62) / 0.12, 0, 1);
   return c * clamp(land * 30, 0, 1) * clamp((0.2 - land) * 10, 0, 1);
 }
 
@@ -53,18 +53,18 @@ float vnoise(vec2 p, float cell, float s){
   return a + (b - a) * u.x + (c - a) * u.y + (a - b - c + d) * u.x * u.y;
 }
 float landField(vec2 p){
-  float big = vnoise(p, 8192.0, 1.0);
-  float f = vnoise(p, 2048.0, 2.0) * 0.5 + vnoise(p, 1024.0, 3.0) * 0.27 + vnoise(p, 512.0, 4.0) * 0.15 + vnoise(p, 256.0, 5.0) * 0.08;
-  return f - 0.5 + (big - 0.5) * 0.7;
+  float big = vnoise(p, 4096.0, 1.0);
+  float f = vnoise(p, 1024.0, 2.0) * 0.5 + vnoise(p, 512.0, 3.0) * 0.27 + vnoise(p, 256.0, 4.0) * 0.15 + vnoise(p, 128.0, 5.0) * 0.08;
+  return f - 0.5 + (big - 0.5) * 0.5;
 }
-float mountField(vec2 p){ float m = vnoise(p, 4096.0, 6.0); return m * m * (3.0 - 2.0 * m); }
+float mountField(vec2 p){ float m = vnoise(p, 2048.0, 6.0); return m * m * (3.0 - 2.0 * m); }
 float reliefField(vec2 p, float land){
   float mt = clamp((mountField(p) - 0.45) / 0.3, 0.0, 1.0);
   float r = vnoise(p, 512.0, 7.0) * 0.6 + vnoise(p, 128.0, 8.0) * 0.3 + vnoise(p, 64.0, 9.0) * 0.1;
   return max(land, 0.0) * (1.2 + mt * 5.0) + mt * r * min(1.0, max(land, 0.0) * 12.0) * 1.6;
 }
 float cityField(vec2 p, float land){
-  float c = clamp((vnoise(p, 1024.0, 10.0) - 0.62) / 0.12, 0.0, 1.0);
+  float c = clamp((vnoise(p, 512.0, 10.0) - 0.62) / 0.12, 0.0, 1.0);
   return c * clamp(land * 30.0, 0.0, 1.0) * clamp((0.2 - land) * 10.0, 0.0, 1.0);
 }
 `;

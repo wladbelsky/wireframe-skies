@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=17`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=19`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -75,6 +75,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   `steer`; one heading for the ground is cut short. New maneuver: an entry in `MANEUVERS` with `need(plane, R)`.
 - `ROUTE` moves the formation across the map (gentle turns, altitude changes); in combat it slows down (the battle
   area drifts forward), on stand-down `SQUAD.rejoin` restarts it from the flight's centroid.
+  Variety: after `SAME_SEA_T` s over open sea (`SAME_LAND_T` over land) the next turn heads for the nearest coast
+  (`ROUTE.scout`, ±90°, `SCOUT_R`). Feature sizes in `noise.js` are tuned to the cruise speed — scaling them up
+  brings back minutes of empty sea (`flight.spec.js` checks the longest stretch).
 - Plane modes: `form` (slot flying) · `engage` (has `target`, attack run) · `reposition` (after a shot / break,
   maneuvers) · `rejoin` (back to the slot; becomes `form` within 25 units).
   `target` ↔ `e.chasers` must always match: drop a target only through `SQUAD.release(p)`.
@@ -88,7 +91,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   A new kind is a new entry (+ a glyph), not new code.
 - Slots are pooled per type and never disposed (a label sprite; aircraft also a `Plane` and a `Trail`). States:
   `live` → `struck` (X + struck-through name, `STRUCK_T`) → `fade` (`FADE_T`) → freed. Units left more than
-  `FAR_BEHIND` from `ROUTE.pos`, and enemy aircraft after the fight, fade out without the X (`vanish`).
+  `FAR_BEHIND` from `ROUTE.pos` fade out without the X (`vanish`); after the fight enemy aircraft fly off and
+  ground units / ships fade 25–45 s later.
 - Ground / sea units: a flat marker, a pole of `POLE_H` up to the name, a dot near the bottom (the replay look).
   Aircraft: the glyph in its attitude, an altitude line to a ground cross, the name beside it.
 - Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
