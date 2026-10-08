@@ -55,7 +55,7 @@ Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedet
 Serve the folder (e.g. `python -m http.server 8765`) and open `http://localhost:8765/`.
 The **⚙ SETTINGS** drawer mirrors all Wallpaper Engine properties and adds a demo beat and an audio-file player
 (the file is analysed the same way Wallpaper Engine analyses system audio). URL parameters: `?demo=1` (demo beat on),
-`?cam=fixed`, `?zoom=150`, `?ts=4` (time ×4).
+`?cam=fixed`, `?zoom=150`, `?ts=4` (time ×4). On a phone in portrait the camera pulls back so the flight stays in frame.
 
 ## Tests
 

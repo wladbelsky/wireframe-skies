@@ -62,4 +62,8 @@ test('render scenario shots', async ({ wp, page }) => {
     const e = ENEMIES.list.find(x => x.state === 'retreat' && x.ground) || ENEMIES.list.find(x => x.state === 'retreat');
     if (e) { CAM.focus.copy(e.pos).setY(10); CAM.cur.dist = 110; CAM.place(); }
   });
+  // a phone in portrait: the camera backs off so the flight stays in frame
+  await page.setViewportSize({ width: 390, height: 844 });
+  await shot('11-phone-peace', () => { __t.sim(20, { audio: false, draw: true }); });
+  await shot('12-phone-combat', () => { __t.forceFight(); __t.sim(25, { audio: true, draw: true }); });
 });

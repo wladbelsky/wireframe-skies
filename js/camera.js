@@ -7,6 +7,9 @@
    focus follows with a critically damped spring (FOCUS_T): no jumps, no jerks — ease in, ease out.
    CAM.right / CAM.upv are the screen axes (camera-facing crosses in LINES). */
 const FOCUS_T = 1.6, AUX_RATE = 0.25, AUX_W = 0.3;   // focus smoothing time (s), helper follow rate (1/s), its weight
+/* narrow screens (phones in portrait): the camera backs off until the frame is at least as wide as on a screen of
+   this aspect — the flight and the fight spread sideways, the vertical field of view stays 40° (no distortion, same labels) */
+const FIT_ASPECT = 1.3;
 const SHOTS = [
   { az: 180, el: 22, dist: 115, drift: 0 },     // chase
   { az: 140, el: 32, dist: 135, drift: 1.2 },   // rear quarter
@@ -65,7 +68,8 @@ const CAM = {
     this.place();
   },
   place() {
-    const dist = this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3);
+    const fit = Math.max(1, FIT_ASPECT / Math.max(0.2, camera.aspect));
+    const dist = this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3) * fit;
     const th = this.heading + this.cur.az * DEG, el = clamp(this.cur.el, 3, 85) * DEG;
     _co.set(Math.sin(th) * Math.cos(el), Math.sin(el), Math.cos(th) * Math.cos(el)).multiplyScalar(dist);
     camera.position.copy(this.focus).add(_co); camera.position.y = Math.max(camera.position.y, TERRAIN.height(camera.position.x, camera.position.z) + 6);

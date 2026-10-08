@@ -83,3 +83,24 @@ test('camera in combat: the hero changes only with the shot, the focus never jer
   expect(r.heroes, 'hero changes in 120 s with 30 s shots').toBeLessThanOrEqual(6);
   expect(r.spikes, `sharp focus kicks (max ${r.maxA} u/s²)`).toBeLessThanOrEqual(r.heroes + 1);
 });
+
+/* share of samples in which the point is inside the frame (2 % margin) */
+const inFrame = (page) => page.evaluate(() => { window.__inFrame = p => { const s = __t.screen(p); return !!s && s.x > innerWidth * 0.02 && s.y > innerHeight * 0.02 && s.x < innerWidth * 0.98 && s.y < innerHeight * 0.98; }; });
+
+for (const [name, w, h] of [['phone portrait', 390, 844], ['phone landscape', 844, 390], ['desktop', 1280, 720]])
+  test(`${name} ${w}x${h}: the flight stays in frame in peace, the hero in combat`, async ({ wp, page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await wp.boot();
+    await inFrame(page);
+    const r = await wp.run(() => {
+      __t.sim(10, { audio: false });
+      let all = 0, n = 0;
+      for (let k = 0; k < 120; k++) { __t.sim(1, { audio: false }); n++; if (SQUAD.planes.every(p => __inFrame(p.pos))) all++; }
+      __t.forceFight(); __t.sim(15, { audio: true });
+      let hero = 0, m = 0;
+      for (let k = 0; k < 120; k++) { __t.sim(1, { audio: true }); m++; if (__inFrame(CAM.hero.pos)) hero++; }
+      return { peace: all / n, combat: hero / m };
+    });
+    expect(r.peace, 'all four planes in frame (peace)').toBeGreaterThan(0.9);
+    expect(r.combat, 'the hero in frame (combat)').toBeGreaterThan(0.9);
+  });

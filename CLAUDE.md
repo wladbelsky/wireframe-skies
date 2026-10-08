@@ -29,7 +29,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
 | `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
-| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, targets only move the slow `aux` point, `right` / `upv` screen axes) |
+| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, backs off on screens narrower than `FIT_ASPECT` (phones in portrait), targets only move the slow `aux` point, `right` / `upv` screen axes) |
 | `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
 | `js/properties.js` | **generated** from `project.json` — do not edit by hand |
 | `js/settings.js` | browser-only settings drawer, demo beat, audio-file player (returns early inside WE) |
@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=28`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=29`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
