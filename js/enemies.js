@@ -13,8 +13,8 @@ const ENEMY_TYPES = {
   aagun:     { cls: 'ground', glyph: 'aagun', scale: 1.9, hp: 1, names: ['AA GUN'], w: 2.5, fires: 'guns', max: 8 },
   tank:      { cls: 'ground', glyph: 'tank', scale: 2.0, hp: 1, speed: 2, names: ['TANK'], w: 2, max: 8 },
   radar:     { cls: 'ground', glyph: 'radar', scale: 2.2, hp: 1, names: ['RADAR'], w: 0.8, max: 4 },
-  frigate:   { cls: 'sea', glyph: 'ship', scale: 2.2, hp: 2, speed: 3, names: ['FRIGATE', 'CORVETTE'], w: 2, fires: 'missile', max: 5 },
-  destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', max: 3 }
+  frigate:   { cls: 'sea', glyph: 'ship', scale: 2.2, hp: 2, speed: 3, names: ['FRIGATE', 'CORVETTE'], w: 2, fires: 'missile', aa: true, max: 5 },
+  destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', aa: true, max: 3 }
 };
 
 const UNTOUCHED_MAX = 5;   // no new wave while this many enemies nobody has gone for yet are around (× density over 100%)
@@ -96,11 +96,11 @@ class EnemyForce extends Force {
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
   onBeat(band) {
     if (!CFG.enemyFire) return;
-    if (band === 'mid' && Math.random() < 0.5) {   // AA guns: streams that miss
+    if (band === 'mid' && Math.random() < 0.5) {   // AA guns and ships' AA: streams that miss
       for (const g of this.list) {
-        if (!g.alive || g.ty.fires !== 'guns') continue;
+        if (!g.alive || (g.ty.fires !== 'guns' && !g.ty.aa)) continue;
         const f = this.nearestFriend(g.pos, 220); if (!f) continue;
-        _q.set(g.pos.x, g.pos.y + 4, g.pos.z);
+        _q.set(g.pos.x, g.pos.y + (g.ty.cls === 'sea' ? 5 : 4), g.pos.z);
         _r.subVectors(f.pos, _q).normalize().add(_b.set(rand(-0.12, 0.12), rand(0.05, 0.15), rand(-0.12, 0.12))).normalize().multiplyScalar(90);
         for (let i = 0; i < 3; i++) TRACERS.spawn(_e.copy(_q).addScaledVector(_r, i * 0.03), _r, 2.2, true);
       }

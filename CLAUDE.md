@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=34`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=35`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -129,7 +129,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Units: enemies and allies (`js/forces.js`, `js/enemies.js`, `js/allies.js`)
 - Both are a `Force` (the shared base). A type: `cls` (`air` / `ground` / `sea`), `glyph` (key into `GLYPHS`), `scale`,
-  `hp`, `speed`, `turn`, `names` (labels), `w` (group weight), `fires` (`missile` / `guns`; the cooldown `e.cd` ticks in
+  `hp`, `speed`, `turn`, `names` (labels), `w` (group weight), `fires` (`missile` / `guns`; `aa`: AA streams as well — ships; the cooldown `e.cd` ticks in
   `Force.update` for every live unit — ships and SAM sites included), `alt` (air), `max` (pool size).
   A new kind is a new entry (+ a glyph), not new code.
 - Slots are pooled per type and never disposed (a label sprite; aircraft also a `Plane` and a `Trail`). States:

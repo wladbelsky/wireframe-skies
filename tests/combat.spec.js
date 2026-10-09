@@ -179,7 +179,7 @@ test('a sure-hit missile is not lost to a ridge; a vanishing aircraft does not f
   expect(Math.abs(r.dy1 - r.dy0), 'no dive while fading').toBeLessThan(1e-6);
 });
 
-test('ships and SAM sites fire missiles too (enemy and allied)', async ({ wp }) => {
+test('ships and SAM sites fire missiles too (enemy and allied), enemy ships AA streams', async ({ wp }) => {
   await wp.boot();
   const r = await wp.run(() => {
     __t.props({ enemydensity: 0 });
@@ -198,14 +198,16 @@ test('ships and SAM sites fire missiles too (enemy and allied)', async ({ wp }) 
     if (!(sea && land)) return { found: false };
     const from = {}, f = MISSILES.fire.bind(MISSILES);
     MISSILES.fire = (o) => { for (const F of [ENEMIES, ALLIES]) for (const e of F.list) if (e.alive && !e.plane && e.pos.distanceTo(o.p) < 6) from[F === ENEMIES ? 'enemy ' + e.type : 'ally ' + e.type] = 1; return f(o); };
+    const tr = TRACERS.spawn.bind(TRACERS);
+    TRACERS.spawn = (p, v, life, enemy) => { if (enemy && ENEMIES.list.some(e => e.alive && e.ty.cls === 'sea' && e.pos.distanceTo(p) < 8)) from['enemy frigate aa'] = 1; return tr(p, v, life, enemy); };
     for (const e of [ENEMIES.spawn('frigate', sea, 0), ENEMIES.spawn('sam', land, 0)]) e.hp = 99;   // not sunk before their turn to fire
     ALLIES.spawn('aegis', sea.clone().add(new THREE.Vector3(30, 0, 0)), 0); ALLIES.spawn('sam', land.clone().add(new THREE.Vector3(30, 0, 0)), 0);
     ENEMIES.spawn('bomber', c.clone().add(new THREE.Vector3(0, 40, 0)), 0);   // something for the allies to shoot at
     __t.forceFight();
-    const v = __t.sim(40, { audio: true, until: () => Object.keys(from).length === 4 }).violations;
+    const v = __t.sim(40, { audio: true, until: () => Object.keys(from).length === 5 }).violations;
     return { v: v.slice(0, 5), from: Object.keys(from).sort(), found: !!(sea && land) };
   });
   expect(r.found).toBe(true);
   expect(r.v).toEqual([]);
-  expect(r.from).toEqual(['ally aegis', 'ally sam', 'enemy frigate', 'enemy sam']);
+  expect(r.from).toEqual(['ally aegis', 'ally sam', 'enemy frigate', 'enemy frigate aa', 'enemy sam']);
 });
