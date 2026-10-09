@@ -49,3 +49,23 @@ test('switching allies off fades the ones on the map and stops new groups', asyn
   expect(r.more).toBe(0);
   expect(r.left).toBe(0);
 });
+
+test('allied fighters in a fight spread over the enemy and never merge into one glyph', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.forceFight();
+    const c = new THREE.Vector3(), v = [];
+    let close = 0, pairs = 0;
+    for (let k = 0; k < 150; k++) {
+      // a four-ship joins the flight every 30 s (chasing the nearest enemy, they used to fly as one)
+      if (k % 30 === 0 && ALLIES.alive <= ALLY_CAP - 4) for (let i = 0; i < 4; i++) ALLIES.spawn('fighter', SQUAD.centroid(c).add(new THREE.Vector3(i * 12, 20, 0)), ROUTE.heading, `TEST ${i + 1}`);
+      v.push(...__t.sim(1, { audio: true }).violations);
+      const f = ALLIES.list.filter(e => e.alive && e.plane);
+      for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) { pairs++; if (f[i].pos.distanceTo(f[j].pos) < 6) close++; }
+    }
+    return { v: v.slice(0, 10), close, pairs };
+  });
+  expect(r.v).toEqual([]);
+  expect(r.pairs).toBeGreaterThan(300);
+  expect(r.close, `pairs of allied aircraft closer than 6 (of ${r.pairs})`).toBeLessThanOrEqual(2);
+});
