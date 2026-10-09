@@ -207,7 +207,7 @@ const SQUAD = {
       else s += e.chasers * 160 + (lead ? e.pos.distanceTo(lead.pos) * 0.5 : 0);   // spread over the targets; a wingman stays near its lead
       if (this.started(p, e) || this.started(mate, e)) s -= 200;   // finish what the element started
       if (e.hurt) s -= 180;
-      if (mop) s += (e.hp - e.incoming - 1) * 150;   // no music, little time: what goes down with one more hit first
+      if (mop) s += (e.hp - e.incoming - 1) * 400;   // no music, little time: what goes down with one more hit first
       s -= Math.min(e.t, 60) * 5;   // been there a long time: its turn
       if (e.plane && e.mode === 'dogfight' && this.onTail(p, e)) s -= 120;   // on a mate's tail: clear it
       if (s < bs) { bs = s; best = e; }
@@ -219,7 +219,8 @@ const SQUAD = {
     if (p.evadeAt > 0 && T >= p.evadeAt) {   // hostile missile inbound: break and pop flares
       p.evadeAt = -1; p.flareT = 1.3;
       if (MANEUVERS.breakTurn.need(p)) p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, Math.random() < 0.5 ? 1 : -1));
-      p.mode = 'reposition'; p.modeT = rand(2.5, 4); this.release(p);
+      if (p.mode === 'engage' && p.target) { p.ready = 0; p.noAim = -NOAIM_T; }   // on an attack run: break, then back onto the same target
+      else { p.mode = 'reposition'; p.modeT = rand(2.5, 4); this.release(p); }
     }
     if (p.mode === 'rejoin') p.mode = 'reposition';
     if (p.target && (!p.target.alive || p.target.hp - p.target.incoming <= 0)) this.release(p);   // dead, or the missiles in flight will do it
@@ -251,11 +252,13 @@ const SQUAD = {
       _D.y = clamp(_D.y, -0.6, 0.6); _D.normalize();
       const aim = p.dir.dot(_tg.subVectors(t.pos, p.pos).normalize());
       const inRange = d > 35 && d < (t.ground ? 190 : 210) && aim > 0.86;
-      p.ready = inRange && p.cd <= 0 ? p.ready + dt : 0;
+      p.ready = inRange && p.cd <= 0 && !p.maneuvering ? p.ready + dt : 0;
       p.noAim = inRange || d > 260 ? 0 : (p.noAim || 0) + dt;   // circling close without a shot → extend
+      // a ground target too close and off the nose can't be dived onto from here: go out for a run at once
+      if (t.ground && d < 130 && aim < 0.5 && !p.maneuvering) p.noAim = NOAIM_T + 1;
       if (p.noAim > NOAIM_T) { p.noAim = 0; p.extendT = t.ground ? 7 : rand(3, 4.5); }
       if (this.firing && p.ready > (this.mopT > 0 ? 0.7 : 1.6)) this.shoot(p);   // no beats (quiet music / mop-up): shoot anyway
-      if (d < 26 || (t.ground && d < 45 && p.agl < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
+      if (!p.maneuvering && (d < 26 || (t.ground && d < 45 && p.agl < 30))) { this.release(p); this.afterShot(p); }   // overshoot: break off
     } else if (this.isWing(p) && !p.maneuvering) this.cover(p, this.mate(p));
     else if (!p.maneuvering) {
       // a lead repositioning / nothing to do: extend, turn back toward the battle area, keep a sane altitude

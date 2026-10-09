@@ -108,10 +108,10 @@ class EnemyForce extends Force {
     if (band === 'low' || this.fireT > 0) return;
     const shooters = this.list.filter(e => e.alive && e.ty.fires === 'missile' && e.cd <= 0 && this.nearestFriend(e.pos, e.plane ? 200 : 300));
     if (!shooters.length) return;
-    const s = pick(shooters), f = this.nearestFriend(s.pos, 300);
+    const s = wpick(shooters.map(e => ({ k: e, w: e.plane ? 3 : 1 }))).k, f = this.nearestFriend(s.pos, 300);   // aircraft first: the dogfight keeps its missiles
     if (s.plane) { _r.subVectors(f.pos, s.pos).normalize(); if (s.plane.dir.dot(_r) < 0.5) return; _q.copy(s.pos).addScaledVector(s.plane.dir, 2); _r.copy(s.plane.dir); }
     else { _q.set(s.pos.x, s.pos.y + (s.ty.cls === 'sea' ? 4 : 3), s.pos.z); _r.subVectors(f.pos, _q).normalize(); _r.y = Math.max(_r.y, 0.4); _r.normalize(); }
-    MISSILES.fire({ p: _q, d: _r, speed: s.plane ? s.plane.speed + 5 : 12, target: f, hit: false, enemy: true });
+    if (!MISSILES.fire({ p: _q, d: _r, speed: s.plane ? s.plane.speed + 5 : 12, target: f, hit: false, enemy: true })) return;   // pool full: no launch, no threat
     GLOW.spawn(_q, { c: PAL.enemy, s: 3, life: 0.3 });
     SQUAD.threat(f);
     s.cd = s.ace ? rand(3, 5) : rand(5, 9); this.fireT = rand(2, 4.5); this.missiles++;

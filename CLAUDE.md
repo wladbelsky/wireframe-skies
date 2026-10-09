@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=33`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=34`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -121,10 +121,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - **No orbiting:** a target inside the turn circle can't be aimed at — after `NOAIM_T` s near it without a firing
   solution the plane extends (`p.extendT`: away from it, climbing to `ATTACK_AGL`), then turns in again (the turn back
   gets another `NOAIM_T` s before it counts as circling); from a ground / sea target it extends until 190 out (room to
-  dive onto it). In the mop-up targets one hit from going down come first.
+  dive onto it) — at once when it is under 130 away and off the nose. In the mop-up targets one hit from going down come first.
 - Shooting: one missile per low beat (round robin among ready planes), guns on mid beats; a plane that has been
   ready for 1.6 s shoots anyway (quiet music). Friendly missiles always reach a live target; hostile ones
-  (`ENEMIES.onBeat`, mid / high beats, rate-limited) always lose lock, and the target breaks and pops flares.
+  (`ENEMIES.onBeat`, mid / high beats, rate-limited, aircraft picked first) always lose lock, and the target breaks and pops
+  flares — a plane on an attack run keeps its target and comes back onto it after the break.
 
 ## Units: enemies and allies (`js/forces.js`, `js/enemies.js`, `js/allies.js`)
 - Both are a `Force` (the shared base). A type: `cls` (`air` / `ground` / `sea`), `glyph` (key into `GLYPHS`), `scale`,

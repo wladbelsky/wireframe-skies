@@ -195,6 +195,7 @@ test('ships and SAM sites fire missiles too (enemy and allied)', async ({ wp }) 
     for (let i = 0; i < 4000 && !(sea && land); i++) {
       WORLD.origin.x += Math.round(rand(-20000, 20000)); WORLD.origin.z += Math.round(rand(-20000, 20000)); sea = spot(true); land = spot(false);
     }
+    if (!(sea && land)) return { found: false };
     const from = {}, f = MISSILES.fire.bind(MISSILES);
     MISSILES.fire = (o) => { for (const F of [ENEMIES, ALLIES]) for (const e of F.list) if (e.alive && !e.plane && e.pos.distanceTo(o.p) < 6) from[F === ENEMIES ? 'enemy ' + e.type : 'ally ' + e.type] = 1; return f(o); };
     for (const e of [ENEMIES.spawn('frigate', sea, 0), ENEMIES.spawn('sam', land, 0)]) e.hp = 99;   // not sunk before their turn to fire
