@@ -217,7 +217,7 @@ test('music start: the flight spreads out and breaks only when the first contact
   await wp.boot();
   const r = await wp.run(() => {
     const c = new THREE.Vector3(), toward = () => {   // mean cosine between the planes' headings and the way to the enemies
-      let w = 0; c.set(0, 0, 0); for (const e of ENEMIES.list) if (e.alive) { c.add(e.pos); w++; } c.multiplyScalar(1 / w);
+      let w = 0; c.set(0, 0, 0); for (const e of ENEMIES.list) if (e.alive) { c.add(e.pos); w++; } if (!w) return -1; c.multiplyScalar(1 / w);   // -1: none left to turn to
       return SQUAD.planes.reduce((s, p) => s + p.dir.dot(c.clone().sub(p.pos).setY(0).normalize()), 0) / 4;
     };
     __t.forceFight();

@@ -107,11 +107,11 @@ const SQUAD = {
     if (this.mopT > 0 && ((this.mopT -= dt) <= 0 || !ENEMIES.list.some(e => e.alive && e.mop))) this.endMopUp();
     if (this.alert && ENEMIES.list.some(e => e.alive && e.t >= APPEAR_T * 0.6)) this.contact();   // the first ping is up
     this.updateAnchor(dt);
-    const engaged = this.engaged; ROUTE.combat = engaged && !this.alert;
+    const engaged = this.engaged, fighting = engaged && !this.alert; ROUTE.combat = fighting;
     ROUTE.update(dt);
     if (!engaged) this.peace(dt);
     for (const p of this.planes) {
-      if (engaged && !this.alert && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
+      if (fighting && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
       p.steer(_D, dt); p.move(dt);
       p.vel.copy(p.dir).multiplyScalar(p.speed);
       p.trail.update(dt, p.pos, true);
@@ -173,13 +173,15 @@ const SQUAD = {
     this.centroid(_c); _tg.set(0, 0, 0); let w = 0;
     for (const e of ENEMIES.list) if (e.alive) { const k = 1 / (1 + e.pos.distanceTo(_c) / 150); _tg.addScaledVector(e.pos, k); w += k; }
     _tg.multiplyScalar(1 / w);
-    for (const p of this.planes) {
-      p.mode = 'reposition'; p.modeT = this.isWing(p) ? rand(0.6, 1.1) : rand(0.3, 0.8); p.rateMul = 1.8;
-      const lead = this.isWing(p) ? this.mate(p) : p;   // a pair breaks the same way
+    for (const p of this.planes) { p.mode = 'reposition'; p.modeT = this.isWing(p) ? rand(0.6, 1.1) : rand(0.3, 0.8); }
+    for (const lead of this.planes) {   // per pair: both break, the same way, or neither does
+      if (this.isWing(lead)) continue;
+      const wing = this.mate(lead);
       _lp.subVectors(_tg, lead.pos).normalize();
-      if (p.maneuvering || lead.dir.dot(_lp) > -0.2 || !MANEUVERS.breakTurn.need(p)) continue;
+      if (lead.dir.dot(_lp) > -0.2 || lead.maneuvering || wing.maneuvering || !MANEUVERS.breakTurn.need(lead) || !MANEUVERS.breakTurn.need(wing)) continue;
       _gv.crossVectors(lead.up, lead.dir);   // the glyph's x: a positive roll puts the lift on the other side
-      p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, _gv.dot(_lp) > 0 ? -1 : 1));
+      const s = _gv.dot(_lp) > 0 ? -1 : 1;
+      for (const p of [lead, wing]) p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, s));
     }
   },
   /* the music stopped: finish off what is on screen, the other enemies retreat now */

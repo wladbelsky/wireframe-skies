@@ -22,7 +22,7 @@ const UNTOUCHED_MAX = 5;   // no new wave while this many enemies nobody has gon
 const ACE_P = 0.15, ACE_CALLSIGNS = ['SHADOW', 'RAVEN', 'SPECTRE', 'NOMAD', 'WRAITH', 'JACKAL', 'MANTIS', 'BANSHEE', 'COYOTE', 'HYDRA'];
 const _e = new V3(), _r = new V3(), _q = new V3(), _b = new V3();
 class EnemyForce extends Force {
-  constructor() { super(ENEMY_TYPES, 'enemy'); this.waveT = 0; this.fireT = 3; this.missiles = 0; this.wasFighting = false; }
+  constructor() { super(ENEMY_TYPES, 'enemy'); this.waveT = 0; this.fireT = 3; this.missiles = 0; this.wasFighting = false; this.near = false; }   // near: the next wave opens a fight (spawns nearer)
   get cap() { return Math.round(clamp(16 * CFG.density / 100, 0, 36)); }
   onGone(e) { for (const p of SQUAD.planes) if (p.target === e) SQUAD.release(p); }
 
