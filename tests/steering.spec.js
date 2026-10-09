@@ -74,9 +74,9 @@ test('teamwork: the flight fights in pairs near each other, damaged enemies are 
       __t.sim(0.05, { audio: true, check: false });
       SQUAD.centroid(c); let m = 0; for (const p of SQUAD.planes) m = Math.max(m, p.pos.distanceTo(c));
       spread += m; pair += (SQUAD.planes[0].pos.distanceTo(SQUAD.planes[1].pos) + SQUAD.planes[2].pos.distanceTo(SQUAD.planes[3].pos)) / 2; n++;
-      // a damaged enemy near the flight that nobody goes for (no chaser, no missile in flight)
+      // a damaged enemy in the battle area that nobody goes for (no chaser, no missile in flight)
       for (const e of ENEMIES.list) {
-        const t = e.alive && e.hurt && !e.chasers && !e.incoming && e.pos.distanceTo(c) < 400 ? (wait.get(e) || 0) + 0.05 : 0;
+        const t = e.alive && e.hurt && !e.chasers && !e.incoming && e.pos.distanceTo(SQUAD.anchor) < AREA_R ? (wait.get(e) || 0) + 0.05 : 0;
         wait.set(e, t); hurtWait = Math.max(hurtWait, t);
       }
     }
@@ -85,7 +85,7 @@ test('teamwork: the flight fights in pairs near each other, damaged enemies are 
   // the old AI (every plane on its own): spread ~250-280, pairs ~260-330 apart
   expect(r.spread, 'mean distance of the furthest plane from the flight centre').toBeLessThan(230);
   expect(r.pair, 'mean distance within the pairs').toBeLessThan(200);
-  expect(r.hurtWait, 's a damaged enemy near the flight waits for someone to go for it').toBeLessThan(12);
+  expect(r.hurtWait, 's a damaged enemy in the battle area waits for someone to go for it').toBeLessThan(12);
   expect(r.leftHurt, 'damaged enemies left behind').toBeLessThanOrEqual(1);
   expect(r.kills).toBeGreaterThan(25);
 });

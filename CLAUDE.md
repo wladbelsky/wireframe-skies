@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=36`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=37`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -54,7 +54,10 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - **Combat state** is latched in `updateArming()` (`audio.js`, first thing in `step`): sound for `ARM_DELAY` s →
   `AUD.combat` (`AUD.armed`). When the sound stops, `AUD.holding` for `DISARM_DELAY` s (still armed, but not
   `AUD.fighting`: no new waves, no firing on the beat), then stand-down; sound for `RESUME_DELAY` s resumes it.
-  Use `AUD.fighting` for spawning / enemy fire on the beat. The flight adds the **mop-up** (`SQUAD.mopT`, `MOPUP_T`):
+  Use `AUD.fighting` for spawning / enemy fire on the beat. **Start:** the armed edge puts the flight on `SQUAD.alert` —
+  `COMBAT_SPREAD` slots (not in `FORMATIONS`), the route a little faster, no maneuvers, camera framed like peace — and
+  the first wave comes after 4–6 s, nearer than later ones; the first contact pinged (`e.t ≥ APPEAR_T · 0.6`) →
+  `SQUAD.contact()`: break toward the contacts (a break turn only when they are behind). The flight adds the **mop-up** (`SQUAD.mopT`, `MOPUP_T`):
   `SQUAD.engaged` (= `AUD.armed || mopT > 0`) is "combat mode" (planes fight instead of flying formation, camera,
   allied fighters), `SQUAD.firing` (= `AUD.fighting || mopT > 0`) is "the flight picks targets and shoots".
 - **Start-up splash** (`#splash`): hidden in `step` at `T > SPLASH_T` (2.5 s), CSS failsafe after 8 s; the test

@@ -29,18 +29,18 @@ class EnemyForce extends Force {
   /* ---- waves ---- */
   wave() {
     const n0 = this.list.length, room = this.cap - this.alive; if (room <= 0) return 0;
-    const heavy = AUD.heavy;
-    _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, rand(380, 620)).addScaledVector(ROUTE.right, rand(-260, 260));
+    const heavy = AUD.heavy, k = this.near ? 0.75 : 1; this.near = false;
+    _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, rand(380, 620) * k).addScaledVector(ROUTE.right, rand(-260, 260));
     const land = TERRAIN.land(_e.x, _e.z), groundOk = land > 0.03, seaOk = land < -0.06;
     const airP = groundOk || seaOk ? 0.45 : 1;
-    if (Math.random() < airP) this.airGroup(Math.min(room, randi(2, 3 + Math.round(heavy * 2))));
+    if (Math.random() < airP) this.airGroup(Math.min(room, randi(2, 3 + Math.round(heavy * 2))), k);
     else if (seaOk) this.seaGroup(_e, Math.min(room, randi(1, 3)), ['frigate', 'destroyer'], 70);
     else this.groundGroup(_e, Math.min(room, randi(3, 5 + Math.round(heavy * 2))), ['sam', 'aagun', 'tank', 'radar'], 45);
     return this.list.length - n0;
   }
-  airGroup(n) {
+  airGroup(n, k = 1) {
     const type = wpick(['fighter', 'bomber', 'attacker', 'heli'].map(k => ({ k, w: ENEMY_TYPES[k].w }))).k, ty = ENEMY_TYPES[type];
-    const ahead = type === 'heli' ? rand(300, 450) : rand(500, 750);
+    const ahead = (type === 'heli' ? rand(300, 450) : rand(500, 750)) * k;
     _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, ahead).addScaledVector(ROUTE.right, rand(-300, 300)); _e.y = TERRAIN.height(_e.x, _e.z) + rand(ty.alt[0], ty.alt[1]);
     // they come at the flight, roughly
     const toward = Math.atan2(ROUTE.pos.x - _e.x, ROUTE.pos.z - _e.z) + rand(-0.5, 0.5);
@@ -57,7 +57,7 @@ class EnemyForce extends Force {
 
   update(dt) {
     const fighting = AUD.fighting;
-    if (fighting && !this.wasFighting) this.waveT = 1.5;
+    if (fighting && !this.wasFighting) { this.waveT = rand(4, 6); this.near = true; }   // first the flight spreads out, then the opening wave, a bit nearer
     this.wasFighting = fighting;
     if (fighting && CFG.density > 0) {
       this.waveT -= dt;

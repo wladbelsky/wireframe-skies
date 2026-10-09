@@ -152,13 +152,14 @@ test('music back during the mop-up: the fight just goes on', async ({ wp }) => {
     __t.fightOff(); __t.sim(DISARM_DELAY + 0.3, { audio: false });
     const mopT = SQUAD.mopT;
     const v = __t.sim(8, { audio: true }).violations;   // music again: arms after ARM_DELAY
-    return { v: v.slice(0, 5), mopT, after: SQUAD.mopT, armed: AUD.armed, marked: ENEMIES.list.filter(x => x.mop).length, modes: SQUAD.planes.map(q => q.mode) };
+    return { v: v.slice(0, 5), mopT, after: SQUAD.mopT, armed: AUD.armed, marked: ENEMIES.list.filter(x => x.mop).length, modes: SQUAD.planes.map(q => q.mode), alert: SQUAD.alert };
   });
   expect(r.v).toEqual([]);
   expect(r.armed).toBe(true);
   expect(r.after).toBe(0);
   expect(r.marked).toBe(0);
-  expect(r.modes.every(m => m !== 'form' && m !== 'rejoin')).toBe(true);
+  // still fighting — or, if the mop-up was over before the music came back, a new start: spread, waiting for contact
+  expect(r.alert || r.modes.every(m => m !== 'form' && m !== 'rejoin'), JSON.stringify(r.modes)).toBe(true);
 });
 
 test('a sure-hit missile is not lost to a ridge; a vanishing aircraft does not fall like a kill', async ({ wp }) => {
@@ -210,4 +211,26 @@ test('ships and SAM sites fire missiles too (enemy and allied), enemy ships AA s
   expect(r.found).toBe(true);
   expect(r.v).toEqual([]);
   expect(r.from).toEqual(['ally aegis', 'ally sam', 'enemy frigate', 'enemy frigate aa', 'enemy sam']);
+});
+
+test('music start: the flight spreads out and breaks only when the first contacts show, toward them', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const c = new THREE.Vector3(), toward = () => {   // mean cosine between the planes' headings and the way to the enemies
+      let w = 0; c.set(0, 0, 0); for (const e of ENEMIES.list) if (e.alive) { c.add(e.pos); w++; } c.multiplyScalar(1 / w);
+      return SQUAD.planes.reduce((s, p) => s + p.dir.dot(c.clone().sub(p.pos).setY(0).normalize()), 0) / 4;
+    };
+    __t.forceFight();
+    const t0 = T, v = __t.sim(20, { audio: true, until: () => !SQUAD.alert && T - t0 > 0.1 }).violations;
+    const waited = T - t0, enemies = ENEMIES.alive, spread = SQUAD.planes[0].pos.distanceTo(SQUAD.planes[2].pos), at = toward();
+    const went = new Set(); let after = -1;
+    v.push(...__t.sim(5, { audio: true, until: () => { for (const p of SQUAD.planes) if (p.mode === 'engage') went.add(p.idx); after = Math.max(after, toward()); return false; } }).violations);
+    return { v: v.slice(0, 5), waited, enemies, spread, at, after, engaging: went.size };
+  });
+  expect(r.v, 'no maneuvers / attacks before the first contact (inpage invariant)').toEqual([]);
+  expect(r.waited, 's of combat spread before the contact').toBeGreaterThan(4);
+  expect(r.enemies).toBeGreaterThan(0);
+  expect(r.spread, 'the two pairs moved apart (finger: 9)').toBeGreaterThan(26);
+  expect(r.after, `headings turned toward the contacts (at contact: ${r.at.toFixed(2)})`).toBeGreaterThan(0.6);
+  expect(r.engaging, 'planes that went for a target within 5 s').toBeGreaterThan(2);
 });

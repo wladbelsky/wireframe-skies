@@ -36,7 +36,10 @@ test('render scenario shots', async ({ wp, page }) => {
   await wp.run((toCoast) => (0, eval)(toCoast)(), `(${toCoast})`);
   await shot('1-peace', () => { __t.sim(45, { audio: false, draw: true }); });
   await shot('2-peace-allies', () => { __t.sim(0.05); const a = ALLIES.list.find(e => e.alive); if (a) { CAM.focus.copy(a.pos).lerp(SQUAD.planes[0].pos, 0.5); CAM.place(); } });
-  await shot('3-combat', () => { __t.forceFight(); __t.sim(25, { audio: true, draw: true }); });
+  // music on: first the combat spread (no enemies yet), then the break toward the first contacts
+  await shot('3a-spread', () => { __t.forceFight(); __t.sim(3.5, { audio: true, draw: true }); });
+  await shot('3b-contact', () => { __t.sim(20, { audio: true, draw: true, until: () => !SQUAD.alert }); __t.sim(1.5, { audio: true, draw: true }); });
+  await shot('3-combat', () => { __t.sim(20, { audio: true, draw: true }); });
   await shot('4-combat-later', () => { __t.sim(17, { audio: true, draw: true }); });
   await shot('5-ground-closeup', () => {
     __t.sim(0.05); const e = ENEMIES.list.find(x => x.alive && x.ground) || ALLIES.list.find(x => x.alive && x.ground);

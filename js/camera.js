@@ -55,7 +55,7 @@ const CAM = {
   update(dt) {
     // focus: the flight's centroid in peace; in combat the hero plane, leaning toward the slow helper point
     SQUAD.centroid(_cf);
-    this.combatK += ((SQUAD.engaged ? 1 : 0) - this.combatK) * Math.min(1, dt * 0.4);
+    this.combatK += ((SQUAD.engaged && !SQUAD.alert ? 1 : 0) - this.combatK) * Math.min(1, dt * 0.4);   // the spread before contact is framed like peace
     if (!this.hero) this.pickHero();
     const h = this.hero, t = h.target;
     _ce.copy(t && t.alive && t.pos.distanceTo(h.pos) < 320 ? t.pos : h.pos);

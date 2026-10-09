@@ -8,6 +8,9 @@
    finishes what the element started, damaged and long-ignored enemies first, and clears a mate's tail. Everything
    happens around the battle area (anchor: where the enemies near the flight are), which ROUTE turns toward and waits
    for, so nothing is left behind half-dead.
+   When the music starts (AUD.armed) there is nothing to fight yet: the flight moves into a combat spread
+   (COMBAT_SPREAD, SQUAD.alert, a little faster) and only breaks when the first contacts show on radar (contact():
+   toward them — a break turn if they are behind, else a hard turn in).
    When the music stops (AUD.armed → false, after the hold) comes the mop-up: for up to MOPUP_T s the flight finishes
    off the enemies that were on screen (e.mop; shots paced by a timer, no beats); every other enemy retreats at once,
    the rest when the mop-up ends. Then ROUTE jumps to the flight and they rejoin.
@@ -26,6 +29,7 @@ const FORMATIONS = {   // slots: [right, up, back] relative to ROUTE (lead first
   abreast: [[0, 0, 0], [-12, 0, -1], [12, 0, -1], [24, 0, -2]],
   trail:   [[0, 0, 0], [0, -1.5, -12], [0, -3, -24], [0, -4.5, -36]]
 };
+const COMBAT_SPREAD = [[0, 0, 0], [-12, -1, -9], [36, 2, -5], [48, 1, -14]];   // music on, no contact yet: two pairs side by side
 const ROUTE = {
   pos: new V3(0, 70, 0), heading: 0, tgtHeading: 0, alt: 70, tgtAlt: 70, speed: CRUISE, turnT: 25, altT: 12,
   fwd: new V3(0, 0, 1), right: new V3(-1, 0, 0), combat: false, overLand: false, sameT: 0, scouted: false, clearT: 0, ground: 0,
@@ -54,7 +58,7 @@ const ROUTE = {
     // in a fight: head for the battle area and wait for it (enemies off to the side / behind are not left behind)
     let slow = false;
     if (this.combat && SQUAD.foes) { _ra.subVectors(SQUAD.anchor, this.pos).setY(0); if (_ra.length() > 120) this.tgtHeading = Math.atan2(_ra.x, _ra.z); slow = _ra.dot(this.fwd) < 80; }
-    const sp = this.combat ? this.cruise * (slow ? 0.2 : 0.45) : this.cruise; this.speed += clamp(sp - this.speed, -6 * dt, 4 * dt);
+    const sp = this.combat ? this.cruise * (slow ? 0.2 : 0.45) : this.cruise * (SQUAD.alert ? 1.15 : 1); this.speed += clamp(sp - this.speed, -6 * dt, 4 * dt);
     this.fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading)); this.right.set(-Math.cos(this.heading), 0, Math.sin(this.heading));
     this.pos.addScaledVector(this.fwd, this.speed * dt); this.pos.y = this.alt;
   },
@@ -75,7 +79,7 @@ const ROUTE = {
 
 const _sl = new V3(), _tg = new V3(), _D = new V3(), _c = new V3(), _lp = new V3(), _fp = new V3(), _gv = new V3(), _ra = new V3();
 const SQUAD = {
-  planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0, mopT: 0, anchor: new V3(), foes: 0,
+  planes: [], form: 'finger', formT: 60, stuntT: 40, fireRR: 0, wasArmed: false, shots: 0, mopT: 0, anchor: new V3(), foes: 0, alert: false,
   get engaged() { return AUD.armed || this.mopT > 0; },     // the flight fights (vs formation flying)
   get firing() { return AUD.fighting || this.mopT > 0; },   // new targets and shots
   build(scene) {
@@ -97,16 +101,17 @@ const SQUAD = {
 
   update(dt) {
     const armed = AUD.armed;
-    if (armed && !this.wasArmed) { if (this.mopT > 0) this.resume(); else this.engageAll(); }
+    if (armed && !this.wasArmed) { if (this.mopT > 0) this.resume(); else this.alertAll(); }
     if (!armed && this.wasArmed) this.startMopUp();
     this.wasArmed = armed;
     if (this.mopT > 0 && ((this.mopT -= dt) <= 0 || !ENEMIES.list.some(e => e.alive && e.mop))) this.endMopUp();
+    if (this.alert && ENEMIES.list.some(e => e.alive && e.t >= APPEAR_T * 0.6)) this.contact();   // the first ping is up
     this.updateAnchor(dt);
-    const engaged = this.engaged; ROUTE.combat = engaged;
+    const engaged = this.engaged; ROUTE.combat = engaged && !this.alert;
     ROUTE.update(dt);
     if (!engaged) this.peace(dt);
     for (const p of this.planes) {
-      if (engaged && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
+      if (engaged && !this.alert && p.mode !== 'form') this.fight(p, dt); else this.keepSlot(p, dt);
       p.steer(_D, dt); p.move(dt);
       p.vel.copy(p.dir).multiplyScalar(p.speed);
       p.trail.update(dt, p.pos, true);
@@ -128,7 +133,7 @@ const SQUAD = {
     }
   },
   keepSlot(p, dt) {
-    const far = this.follow(p, ROUTE.slot(FORMATIONS[this.form][p.idx], _sl), ROUTE.fwd, ROUTE.speed);
+    const far = this.follow(p, ROUTE.slot((this.alert ? COMBAT_SPREAD : FORMATIONS[this.form])[p.idx], _sl), ROUTE.fwd, ROUTE.speed);
     p.rateMul = far > 40 ? 1.6 : 1;
     if (p.mode !== 'form' && far < 25) p.mode = 'form';
   },
@@ -160,18 +165,29 @@ const SQUAD = {
   isWing(p) { return p.idx % 2 === 1; },
   onTail(p, e) { for (const q of this.planes) if (q !== p && q.pos.distanceTo(e.pos) < 120) return true; return false; },   // e is close to one of p's mates
   started(p, e) { return p.last === e && p.lastGen === e.gen; },   // p fired at this very enemy (not a reused slot)
-  engageAll() {
-    this.planes.forEach((p, i) => {
-      p.mode = 'reposition'; p.modeT = rand(1.5, 3); p.target = null; p.rateMul = 1.8;
-      if (!p.maneuvering && MANEUVERS.breakTurn.need(p)) p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, i % 3 === 0 ? -1 : 1));
-    });
+  /* the music started: into the combat spread, nothing to fight yet */
+  alertAll() { this.alert = true; for (const p of this.planes) { this.release(p); if (p.mode !== 'form') p.mode = 'rejoin'; } },
+  /* the first contacts are on radar: break toward them (a break turn when they are behind, else a hard turn in) */
+  contact() {
+    this.alert = false;
+    this.centroid(_c); _tg.set(0, 0, 0); let w = 0;
+    for (const e of ENEMIES.list) if (e.alive) { const k = 1 / (1 + e.pos.distanceTo(_c) / 150); _tg.addScaledVector(e.pos, k); w += k; }
+    _tg.multiplyScalar(1 / w);
+    for (const p of this.planes) {
+      p.mode = 'reposition'; p.modeT = this.isWing(p) ? rand(0.6, 1.1) : rand(0.3, 0.8); p.rateMul = 1.8;
+      const lead = this.isWing(p) ? this.mate(p) : p;   // a pair breaks the same way
+      _lp.subVectors(_tg, lead.pos).normalize();
+      if (p.maneuvering || lead.dir.dot(_lp) > -0.2 || !MANEUVERS.breakTurn.need(p)) continue;
+      _gv.crossVectors(lead.up, lead.dir);   // the glyph's x: a positive roll puts the lift on the other side
+      p.maneuver('breakTurn', MANEUVERS.breakTurn.segs(p.speed, _gv.dot(_lp) > 0 ? -1 : 1));
+    }
   },
   /* the music stopped: finish off what is on screen, the other enemies retreat now */
   startMopUp() {
     this.centroid(_c);
     for (const e of ENEMIES.list) {
       if (!e.alive) continue;
-      e.mop = e.pos.distanceTo(_c) < MOPUP_R && CAM.onScreen(e.pos, 0.05);
+      e.mop = !this.alert && e.pos.distanceTo(_c) < MOPUP_R && CAM.onScreen(e.pos, 0.05);   // no contact yet: nothing to finish
       if (!e.mop) ENEMIES.retreat(e);
     }
     this.mopT = MOPUP_T;
@@ -191,7 +207,7 @@ const SQUAD = {
     ROUTE.alt = ROUTE.tgtAlt = clamp(_c.y, 40, 140); ROUTE.speed = ROUTE.cruise * 0.7; ROUTE.turnT = rand(15, 30);
     ROUTE.pos.addScaledVector(_tg.setY(0).normalize(), -10);
     for (const p of this.planes) { this.release(p); p.mode = 'rejoin'; p.evadeAt = -1; }   // no break left over for the next fight
-    this.formT = rand(45, 110);
+    this.formT = rand(45, 110); this.alert = false;
   },
   /* lower score = better: near, ahead of the nose, in the battle area, not taken yet — plus teamwork */
   pickTarget(p) {

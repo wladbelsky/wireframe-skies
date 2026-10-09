@@ -57,6 +57,7 @@
       H.minY = Math.min(H.minY, agl);   // lowest height above the ground
     }
     if (!SQUAD.engaged && SQUAD.planes.some(p => p.mode === 'engage')) v.push('engaging out of combat');
+    if (SQUAD.alert && (!SQUAD.engaged || SQUAD.planes.some(p => p.mode === 'engage' || p.mode === 'reposition' || (p.man && p.man.name === 'breakTurn')))) v.push('fighting before the first contact');
     if (SQUAD.mopT > 0 && SQUAD.planes.some(p => p.target && !p.target.mop)) v.push('mop-up target not marked');
     if (SQUAD.mopT <= 0 && ENEMIES.list.some(e => e.mop && e.alive && !AUD.armed)) v.push('mop flag outside the mop-up');
     for (const e of [...ENEMIES.list, ...ALLIES.list]) {
