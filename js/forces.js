@@ -19,6 +19,8 @@ function nearestOf(list, p, maxD, filter) {
   for (const e of list) { if (filter && !filter(e)) continue; const d = e.pos.distanceTo(p); if (d < bd) { bd = d; best = e; } }
   return best;
 }
+/* an air unit's wish D: kept between ±0.5 vertical, its own heading when D is zero, unit length */
+function airWish(e, D) { D.y = clamp(D.y, -0.5, 0.5); if (D.lengthSq() < 1e-6) D.copy(e.plane.dir); return D.normalize(); }
 
 class Force {
   constructor(types, colorKey) { this.types = types; this.colorKey = colorKey; this.list = []; this.slots = {}; this.spawned = 0; this.kills = 0; this.css = cssOf(this.color); }
@@ -98,7 +100,7 @@ class Force {
   fly(e, dt) {}                       // air AI (subclass)
   /* steer an air unit toward the unit direction D (kept between ±0.5 vertical) and move it */
   steerAir(e, D, dt, rateMul) {
-    D.y = clamp(D.y, -0.5, 0.5); if (D.lengthSq() < 1e-6) D.copy(e.plane.dir); D.normalize();
+    airWish(e, D);
     e.plane.rateMul = rateMul || 1; e.plane.steer(D, dt); e.plane.move(dt);
     e.vel.copy(e.plane.dir).multiplyScalar(e.plane.speed);
     e.trail.update(dt, e.pos, true);

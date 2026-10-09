@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=41`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=42`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -152,9 +152,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   on mid / high beats (rate-limited); their missiles always hit. Allies are never targeted and never struck.
 - **Allied aircraft keep apart:** `AllyForce.steerAir` pushes the wish away from other allied aircraft and the flight
   within `SEP_R` (`separate`), and allied fighters spread over the enemy aircraft (`pickAir`: a target another ally
-  already chases counts 150 farther; `e.wing` = how many were on it already: they aim 16 / 32 units beside it) —
-  chasing the same one they used to merge into one glyph. (Not for enemies:
-  pushing them about makes the flight's aim jumpier — more bank wobbles in `steering.spec.js`.)
+  already chases counts 150 farther; `e.wing` = the first place on it nobody else holds: 0 on it, then 16 / 32 units
+  beside it) — chasing the same one they used to merge into one glyph. (Not for enemies: pushing them about makes
+  the flight's aim jumpier — more bank wobbles in `steering.spec.js`.)
 
 ## Performance & memory invariants (the wallpaper never restarts — leaks accumulate for days)
 - **Never create geometry per spawn and drop it.** Units are glyphs drawn into `LINES`; unit slots, bursts, missiles,

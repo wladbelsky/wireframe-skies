@@ -71,21 +71,21 @@ class AllyForce extends Force {
     this.steerAir(e, _a, dt, 1);
   }
   /* the nearest enemy aircraft within 500, each other allied fighter already on it counts 150 farther (they spread out);
-     e.wing = how many are on it already (they aim beside it) */
+     e.wing = the first place on it nobody else holds (0 = on it, then beside it; a place freed stays unique) */
   pickAir(e) {
-    let best = null, bs = Infinity, bn = 0;
+    let best = null, bs = Infinity;
     for (const x of ENEMIES.list) {
       if (!x.alive || !x.plane) continue;
       let s = x.pos.distanceTo(e.pos), n = 0; if (s > 500) continue;
       for (const o of this.list) if (o !== e && o.alive && o.target === x) n++;
-      s += n * 150; if (s < bs) { bs = s; best = x; bn = n; }
+      s += n * 150; if (s < bs) { bs = s; best = x; }
     }
-    e.wing = bn; return best;
+    let w = 0; if (best) while (this.list.some(o => o !== e && o.alive && o.target === best && o.wing === w)) w++;
+    e.wing = w; return best;
   }
   /* allied aircraft keep apart (and clear of the flight): the wish D is pushed away from any closer than SEP_R */
   steerAir(e, D, dt, rateMul) {
-    D.y = clamp(D.y, -0.5, 0.5); if (D.lengthSq() < 1e-6) D.copy(e.plane.dir); D.normalize();
-    this.separate(e, D, this.list); this.separate(e, D, SQUAD.planes);
+    airWish(e, D); this.separate(e, D, this.list); this.separate(e, D, SQUAD.planes);
     super.steerAir(e, D, dt, rateMul);
   }
   separate(e, D, list) {
