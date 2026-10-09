@@ -1,4 +1,4 @@
-// Steering quality: no orbiting a target without shooting, no twitching (roll reversals) on turns
+// Steering quality: no orbiting a target without shooting, no twitching (roll reversals) on turns, teamwork
 const { test, expect } = require('./support/harness');
 
 /* wobbles: the bank swinging back and forth — two roll reversals (|roll rate| > 0.8 rad/s one way, then the other,
@@ -61,4 +61,31 @@ test('no twitching: no bank wobbles in peace and in combat', async ({ wp }) => {
   expect(r.peace, 'wobbles in 2 min of peace').toBeLessThanOrEqual(1);
   // the few left are marginal (~0.9 rad/s) right after a decision (new target, extend); the old steering had hundreds
   expect(r.combat, 'wobbles in 2 min of combat (4 planes)').toBeLessThanOrEqual(6);
+});
+
+test('teamwork: the flight fights in pairs near each other, damaged enemies are finished off', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.forceFight();
+    const c = new THREE.Vector3(), wait = new Map();
+    let n = 0, spread = 0, pair = 0, hurtWait = 0, leftHurt = 0;
+    const van = ENEMIES.vanish.bind(ENEMIES); ENEMIES.vanish = (e) => { if (e.alive && e.hurt) leftHurt++; return van(e); };
+    for (let i = 0; i < 4800; i++) {   // 4 min
+      __t.sim(0.05, { audio: true, check: false });
+      SQUAD.centroid(c); let m = 0; for (const p of SQUAD.planes) m = Math.max(m, p.pos.distanceTo(c));
+      spread += m; pair += (SQUAD.planes[0].pos.distanceTo(SQUAD.planes[1].pos) + SQUAD.planes[2].pos.distanceTo(SQUAD.planes[3].pos)) / 2; n++;
+      // a damaged enemy near the flight that nobody goes for (no chaser, no missile in flight)
+      for (const e of ENEMIES.list) {
+        const t = e.alive && e.hurt && !e.chasers && !e.incoming && e.pos.distanceTo(c) < 400 ? (wait.get(e) || 0) + 0.05 : 0;
+        wait.set(e, t); hurtWait = Math.max(hurtWait, t);
+      }
+    }
+    return { spread: spread / n, pair: pair / n, hurtWait, leftHurt, kills: ENEMIES.kills };
+  });
+  // the old AI (every plane on its own): spread ~250-280, pairs ~260-330 apart
+  expect(r.spread, 'mean distance of the furthest plane from the flight centre').toBeLessThan(230);
+  expect(r.pair, 'mean distance within the pairs').toBeLessThan(200);
+  expect(r.hurtWait, 's a damaged enemy near the flight waits for someone to go for it').toBeLessThan(12);
+  expect(r.leftHurt, 'damaged enemies left behind').toBeLessThanOrEqual(1);
+  expect(r.kills).toBeGreaterThan(25);
 });

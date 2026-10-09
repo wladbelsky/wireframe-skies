@@ -11,17 +11,17 @@
    Glyph axes: nose +Z (dir), up +Y (up), x = up × dir. */
 const CMD_T = 0.35;   // s: time constant of the commanded-direction smoothing
 const ROLL_K = 3, ROLL_ACC = 5;   // roll: rate per radian of bank error (1/s), max roll acceleration (rad/s²)
-const SEG_RAMP = 0.2;
-const TURN_TAU = 1.2;   // s: a direction error is turned out over about this long — the bank follows the turn rate that needs   // maneuver segments: share of the time spent easing the rates in / out
+const SEG_RAMP = 0.2;   // maneuver segments: share of the time spent easing the rates in / out
+const TURN_TAU = 1.2;   // s: a direction error is turned out over about this long — the bank follows the turn rate that needs
 const FLOOR = 16, CEIL = 320;   // altitude limits for every aircraft: FLOOR above the ground under it / ahead, CEIL absolute
-const _ax = new V3(), _pp = new V3(), _gu = new V3(), _du = new V3(), _dd = new V3();
+const _ax = new V3(), _pp = new V3(), _gu = new V3(), _du = new V3(), _dd = new V3(), _dw = new V3();
 
 class Plane {
   constructor(o) {
     this.pos = new V3(); this.dir = new V3(0, 0, 1); this.up = new V3(0, 1, 0);
     this.speed = o.speed || 24; this.tgtSpeed = this.speed; this.accel = o.accel || 9;
     this.turnRate = o.turnRate || 0.5; this.rollRate = o.rollRate || 2.4; this.rateMul = 1;
-    this.cmd = new V3(0, 0, 1); this.rm = 1; this.rollV = 0; this.low = false;   // smoothed command, rate multiplier, roll rate, pulling up
+    this.cmd = new V3(0, 0, 1); this.rm = 1; this.rollV = 0; this.low = false; this.side = 1;   // smoothed command, rate multiplier, roll rate, pulling up, way round
     this.man = null;   // { segs: [{ d, p, q }], i, t, name }
   }
   get maneuvering() { return !!this.man; }
@@ -41,13 +41,21 @@ class Plane {
   /* fly toward the unit direction D (ignored while a maneuver runs) */
   steer(D, dt) {
     if (this.man) { this.runManeuver(dt); this.cmd.copy(this.dir); this.rollV = 0; return; }   // segments end at rest (eased)
+    // way behind: turn round sideways, nearly level (the shortest way on the sphere would go over the top or straight
+    // down — a dive into the ground). The side sticks unless the wish clearly lies on the other one
+    if (this.dir.dot(D) < -0.2 && this.dir.x * this.dir.x + this.dir.z * this.dir.z > 0.1) {
+      _dw.set(this.dir.z, 0, -this.dir.x).normalize();
+      const k = _dw.dot(D); if (Math.abs(k) > 0.15) this.side = Math.sign(k);
+      _dw.multiplyScalar(this.side).setY(clamp(D.y, -0.15, 0.3)).normalize(); D = _dw;
+    }
     // smooth what the caller wants (a new target, a threshold crossed: a glide, not a jerk)
     slerpToward(this.cmd, D, 1 - Math.exp(-dt / CMD_T));
     this.rm += (this.rateMul - this.rm) * Math.min(1, dt * 3);
     _dd.copy(this.cmd);
     // keep out of the ground / the stratosphere whatever the caller wants. Soft: never ask for a dive steeper than
-    // the height to spare over the next 2.5 s allows (so attack dives don't keep tripping the pull-up below)
-    const ga = this.groundAhead(2.5), spare = this.pos.y - ga - (FLOOR + 16);
+    // the height to spare over the next 2.5 s allows (so attack dives don't keep tripping the pull-up below: it ends
+    // above where the pull-up lets go, FLOOR + 24)
+    const ga = this.groundAhead(2.5), spare = this.pos.y - ga - (FLOOR + 28);
     _dd.y = Math.max(_dd.y, -Math.max(0, spare) / (this.speed * 2.5)); _dd.normalize();
     // hard: where the current dive takes it in 2.5 s
     const yp = this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5 - ga;

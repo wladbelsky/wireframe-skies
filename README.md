@@ -18,6 +18,8 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
 - **With music** enemies appear ahead — fighters, bombers, attack jets and helicopters in the air, SAM sites, AA guns,
   tanks and radars on land, frigates and destroyers at sea. The flight breaks, picks targets, fires missiles on the
   beat (guns on the snare), then repositions with loops, Immelmanns, split-S, barrel rolls and break turns.
+  It fights as two pairs: a wingman backs its lead up (the same tough target, or one next to it) and covers its six
+  between attacks, damaged and long-ignored targets come first, and the next wave arrives once this one is under way.
   New targets appear like radar contacts: a ping, the pole rising from the ground, the name typing out.
   A destroyed target gets a red **X** and its name is struck through, then it fades away.
 - **Enemies fire back** (red missiles, AA gun streams), but never hit: the targeted plane breaks and pops flares.

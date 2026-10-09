@@ -25,7 +25,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/models.js` | schematic glyphs `GLYPHS` (arrow, heavy, awacs, heli; flat markers sam, aagun, tank, radar, hq, ship, carrier) — segment lists, `drawGlyph` (in an attitude) / `drawMarker` (flat on the ground) |
 | `js/effects.js` | `Trail`, `LINES` (per-frame glowing segments of a constant pixel width, one instanced draw call: glyphs, altitude lines, poles, cross-outs, circles, tracers, missile smoke), `GLOW` (points: sparks, flares, missile heads), `BURSTS`, `MISSILES`, `TRACERS` |
 | `js/audio.js` | `AUD`, `BANDS`, `onAudio` (beat detection), `updateArming`, `onBeat` → `SQUAD.onBeat` / `ENEMIES.onBeat`, browser `DEMO` beat, `FILE_AUDIO` |
-| `js/squad.js` | `ROUTE` (the virtual lead point), `FORMATIONS`, `SQUAD` (peace formation flying, combat AI, shooting, evasion, flares, rejoin) |
+| `js/squad.js` | `ROUTE` (the virtual lead point), `FORMATIONS`, `SQUAD` (peace formation flying, combat AI in two elements around the battle area `anchor`, shooting, evasion, flares, rejoin) |
 | `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
 | `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
@@ -38,7 +38,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=30`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=31`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -88,7 +88,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   smoothed command `cmd` toward it (`CMD_T`), eases the rate multiplier (`rm`), rolls with inertia (`rollV`, `ROLL_K`,
   `ROLL_ACC`; a roll that must go nearly all the way round keeps its direction) and banks only as much as the needed
   turn rate asks for (`TURN_TAU`). Dives are limited to the height to spare over 2.5 s (soft floor) before the hard
-  pull-up (`low`, with hysteresis) is needed. Maneuver segments ease their rates in / out (`SEG_RAMP`).
+  pull-up (`low`, with hysteresis) is needed; the soft limit ends above where the pull-up lets go (else it flickers).
+  A wish more than ~100° away is turned round sideways, nearly level (`p.side` sticks) — the shortest way on the
+  sphere would go through a vertical dive. Maneuver segments ease their rates in / out (`SEG_RAMP`).
   `steering.spec.js` counts bank wobbles (the old steering: hundreds in 2 min of combat). Maneuvers are scripted body rates (`{ d, p, q }` segments) that take over
   `steer`; one heading for the ground is cut short. New maneuver: an entry in `MANEUVERS` with `need(plane, R)`.
 - `ROUTE` moves the formation across the map (gentle turns, altitude changes); in combat it slows down (the battle
@@ -103,6 +105,17 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Plane modes: `form` (slot flying) · `engage` (has `target`, attack run) · `reposition` (after a shot / break,
   maneuvers) · `rejoin` (back to the slot; becomes `form` within 25 units).
   `target` ↔ `e.chasers` must always match: drop a target only through `SQUAD.release(p)`.
+- **Teamwork:** two elements, planes 1 + 2 and 3 + 4 (`SQUAD.mate`, `isWing`). `pickTarget` scores (lower = better):
+  distance, off-nose angle, distance from the battle area, `chasers`; a wingman takes its lead's target when it needs
+  more than one shot (or is an aircraft), else one next to it; bonuses for what the element fired at (`p.last` +
+  `lastGen`), damaged (`e.hurt`), long-alive (`e.t`) enemies and ones on a mate's tail. A plane drops a target that
+  the missiles already in flight will kill. Between attacks a wingman `cover`s its lead (behind, to the side), a lead
+  turns back toward the battle area.
+- **Battle area** `SQUAD.anchor`: the live enemies within `ANCHOR_R` of the flight (nearer ones weigh more; in the
+  mop-up only `mop` targets), smoothed; `SQUAD.foes` = their count. In a fight `ROUTE` turns toward it and slows
+  down further when it is not ahead, so enemies aren't left behind (`FAR_BEHIND`) half-dead. Waves are paced:
+  no new wave while `UNTOUCHED_MAX` (× density over 100 %) enemies nobody has gone for are alive (`ENEMIES.untouched`).
+  `steering.spec.js` measures it (spread, distance within pairs, how long a damaged enemy waits).
 - **No orbiting:** a target inside the turn circle can't be aimed at — after `NOAIM_T` s near it without a firing
   solution the plane extends (`p.extendT`: away from it, climbing to `ATTACK_AGL`), then turns in again.
 - Shooting: one missile per low beat (round robin among ready planes), guns on mid beats; a plane that has been

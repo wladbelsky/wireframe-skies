@@ -42,7 +42,7 @@ class Force {
     const s = this.slot(type); if (!s) return null;
     s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
-    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false; s.downed = false;
+    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false; s.downed = false; s.hurt = false;
     setLabel(s.label, s.name, this.css, false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
     else { s.pos.set(pos.x, TERRAIN.height(pos.x, pos.z), pos.z); s.vel.set(0, 0, 0); }   // on the ground (ships: sea level)
@@ -56,7 +56,7 @@ class Force {
   damage(e, dmg) {
     if (!e.alive) return;
     e.hp -= dmg;
-    if (e.hp > 0) { BURSTS.spawn(e.pos, this.color, 1.2, false); return; }
+    if (e.hp > 0) { e.hurt = true; BURSTS.spawn(e.pos, this.color, 1.2, false); return; }
     e.alive = false; e.state = 'struck'; e.t = 0; e.downed = true; this.kills++;
     this.onGone(e);
     BURSTS.spawn(e.ground ? _fq.set(e.pos.x, e.pos.y + 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);

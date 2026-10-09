@@ -17,6 +17,7 @@ const ENEMY_TYPES = {
   destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', max: 3 }
 };
 
+const UNTOUCHED_MAX = 5;   // no new wave while this many enemies nobody has gone for yet are around (× density over 100%)
 const ACE_P = 0.15, ACE_CALLSIGNS = ['SHADOW', 'RAVEN', 'SPECTRE', 'NOMAD', 'WRAITH', 'JACKAL', 'MANTIS', 'BANSHEE', 'COYOTE', 'HYDRA'];
 const _e = new V3(), _r = new V3(), _q = new V3(), _b = new V3();
 class EnemyForce extends Force {
@@ -60,11 +61,13 @@ class EnemyForce extends Force {
     if (fighting && CFG.density > 0) {
       this.waveT -= dt;
       const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4)));
-      if (this.waveT <= 0 && this.alive < want) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
+      // the next wave when this one is under way (not while most of it hasn't been touched yet)
+      if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
     super.update(dt);   // after a fight SQUAD.startMopUp / endMopUp send the enemies into retreat
   }
+  untouched() { let n = 0; for (const e of this.list) if (e.alive && !e.hurt && !e.chasers && !e.incoming) n++; return n; }
   fly(e, dt) {
     const pl = e.plane;
     e.modeT -= dt; e.cd -= dt;
