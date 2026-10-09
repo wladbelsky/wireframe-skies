@@ -53,13 +53,13 @@ class Plane {
     this.rm += (this.rateMul - this.rm) * Math.min(1, dt * 3);
     _dd.copy(this.cmd);
     // keep out of the ground / the stratosphere whatever the caller wants. Soft: never ask for a dive steeper than
-    // the height to spare over the next 2.5 s allows (so attack dives don't keep tripping the pull-up below: it ends
-    // above where the pull-up lets go, FLOOR + 24)
-    const ga = this.groundAhead(2.5), spare = this.pos.y - ga - (FLOOR + 28);
+    // the height to spare over the next 2.5 s allows (so attack dives don't keep tripping the pull-up below: a dive
+    // held at this limit ends FLOOR + 20 up, above where the pull-up lets go: FLOOR + 18)
+    const ga = this.groundAhead(2.5), spare = this.pos.y - ga - (FLOOR + 20);
     _dd.y = Math.max(_dd.y, -Math.max(0, spare) / (this.speed * 2.5)); _dd.normalize();
     // hard: where the current dive takes it in 2.5 s
     const yp = this.pos.y + Math.min(0, this.dir.y) * this.speed * 2.5 - ga;
-    const low = this.low = yp < FLOOR + (this.low ? 24 : 14);   // pull-up (with hysteresis): full rate, never mind the roll
+    const low = this.low = yp < FLOOR + (this.low ? 18 : 14);   // pull-up (with hysteresis, letting go below the soft limit): full rate, never mind the roll
     if (low) { _dd.y = Math.max(_dd.y, 0.2 + (FLOOR + 14 - yp) * 0.03); this.rm = Math.max(this.rm, 2); }
     if (this.pos.y > CEIL - 20) _dd.y = Math.min(_dd.y, -(this.pos.y - CEIL + 20) * 0.03);
     _dd.normalize();

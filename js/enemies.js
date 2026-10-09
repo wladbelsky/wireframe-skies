@@ -67,7 +67,16 @@ class EnemyForce extends Force {
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
     super.update(dt);   // after a fight SQUAD.startMopUp / endMopUp send the enemies into retreat
   }
-  untouched() { let n = 0; for (const e of this.list) if (e.alive && !e.hurt && !e.chasers && !e.incoming) n++; return n; }
+  /* enemies nobody has gone for yet; aircraft that flew on past the fight (away from it, 300+ out) don't hold the next wave up */
+  untouched() {
+    let n = 0;
+    for (const e of this.list) {
+      if (!e.alive || e.hurt || e.chasers || e.incoming) continue;
+      if (e.plane && _q.subVectors(e.pos, SQUAD.anchor).lengthSq() > 300 * 300 && _q.dot(e.plane.dir) > 0) continue;
+      n++;
+    }
+    return n;
+  }
   fly(e, dt) {
     const pl = e.plane;
     e.modeT -= dt; e.cd -= dt;

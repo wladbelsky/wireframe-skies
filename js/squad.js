@@ -128,14 +128,18 @@ const SQUAD = {
     }
   },
   keepSlot(p, dt) {
-    ROUTE.slot(FORMATIONS[this.form][p.idx], _sl);
-    const err = _tg.subVectors(_sl, p.pos), along = err.dot(ROUTE.fwd), far = err.length();
-    _D.copy(ROUTE.fwd).multiplyScalar(Math.max(ROUTE.speed, 10) * 1.3).add(err);
-    if (far > 120) _D.copy(err);   // way off: head straight there
-    _D.normalize(); _D.y = clamp(_D.y, -0.5, 0.5); _D.normalize();
-    p.tgtSpeed = clamp(ROUTE.speed + along * 0.6, ROUTE.speed - 8, ROUTE.speed + 16);
+    const far = this.follow(p, ROUTE.slot(FORMATIONS[this.form][p.idx], _sl), ROUTE.fwd, ROUTE.speed);
     p.rateMul = far > 40 ? 1.6 : 1;
     if (p.mode !== 'form' && far < 25) p.mode = 'form';
+  },
+  /* fly to a point moving along fwd at speed (a slot): steering into _D, matching speed; returns the distance to it */
+  follow(p, at, fwd, speed) {
+    const err = _tg.subVectors(at, p.pos), along = err.dot(fwd), far = err.length();
+    _D.copy(fwd).multiplyScalar(Math.max(speed, 10) * 1.3).add(err);
+    if (far > 120) _D.copy(err);   // way off: head straight there
+    _D.normalize(); _D.y = clamp(_D.y, -0.5, 0.5); _D.normalize();
+    p.tgtSpeed = clamp(speed + along * 0.6, speed - 8, speed + 16);
+    return far;
   },
   /* ---- combat ---- */
   /* the battle area: the live enemies near the flight (nearer ones count more; in the mop-up only its targets),
@@ -154,6 +158,7 @@ const SQUAD = {
   },
   mate(p) { return this.planes[p.idx ^ 1]; },
   isWing(p) { return p.idx % 2 === 1; },
+  onTail(p, e) { for (const q of this.planes) if (q !== p && q.pos.distanceTo(e.pos) < 120) return true; return false; },   // e is close to one of p's mates
   started(p, e) { return p.last === e && p.lastGen === e.gen; },   // p fired at this very enemy (not a reused slot)
   engageAll() {
     this.planes.forEach((p, i) => {
@@ -203,7 +208,7 @@ const SQUAD = {
       if (this.started(p, e) || this.started(mate, e)) s -= 200;   // finish what the element started
       if (e.hurt) s -= 180;
       s -= Math.min(e.t, 60) * 5;   // been there a long time: its turn
-      if (e.plane && e.mode === 'dogfight' && this.planes.some(q => q !== p && q.pos.distanceTo(e.pos) < 120)) s -= 120;   // on a mate's tail: clear it
+      if (e.plane && e.mode === 'dogfight' && this.onTail(p, e)) s -= 120;   // on a mate's tail: clear it
       if (s < bs) { bs = s; best = e; }
     }
     return best;
@@ -259,12 +264,8 @@ const SQUAD = {
   /* a wingman between attacks: on the lead's wing, a little behind (watching its six) */
   cover(p, lead) {
     _gv.crossVectors(lead.dir, UP); if (_gv.lengthSq() < 1e-4) _gv.crossVectors(lead.dir, lead.up); _gv.normalize();
-    _sl.copy(lead.pos).addScaledVector(lead.dir, -16).addScaledVector(_gv, p.idx === 1 ? -12 : 12);
-    const err = _tg.subVectors(_sl, p.pos), along = err.dot(lead.dir), far = err.length();
-    _D.copy(lead.dir).multiplyScalar(Math.max(lead.speed, 10) * 1.3).add(err);
-    if (far > 120) _D.copy(err);
-    _D.normalize(); _D.y = clamp(_D.y + Math.max(0, 40 - p.agl) * 0.006, -0.5, 0.5); _D.normalize();
-    p.tgtSpeed = clamp(lead.speed + along * 0.6, lead.speed - 8, lead.speed + 16);
+    this.follow(p, _sl.copy(lead.pos).addScaledVector(lead.dir, -16).addScaledVector(_gv, p.idx === 1 ? -12 : 12), lead.dir, lead.speed);
+    if (p.agl < 40) { _D.y = Math.min(0.5, _D.y + (40 - p.agl) * 0.006); _D.normalize(); }   // not down into the weeds after a low lead
   },
   release(p) {
     if (p.target) p.target.chasers = Math.max(0, p.target.chasers - 1);

@@ -10,6 +10,9 @@ const FOCUS_T = 1.6, AUX_RATE = 0.25, AUX_W = 0.3;   // focus smoothing time (s)
 /* narrow screens (phones in portrait): the camera backs off until the frame is at least as wide as on a screen of
    this aspect — the flight and the fight spread sideways, the vertical field of view stays 40° (no distortion, same labels) */
 const FIT_ASPECT = 1.3;
+/* the lagging focus can fall behind a hero on a long run out: the camera backs off (slowly in, more slowly back) until
+   the hero is within HERO_FIT of the distance to the camera from the focus, at most up to HERO_BACK times as far */
+const HERO_FIT = 0.3, HERO_BACK = 1.8;
 const SHOTS = [
   { az: 180, el: 22, dist: 115, drift: 0 },     // chase
   { az: 140, el: 32, dist: 135, drift: 1.2 },   // rear quarter
@@ -27,7 +30,7 @@ function smoothDamp(cur, target, vel, T, dt) {
 }
 const CAM = {
   focus: new V3(), focusV: new V3(), aux: new V3(), heading: 0, cur: { az: 180, el: 25, dist: 130 }, shot: SHOTS[1], shotT: 0, drift: 0, combatK: 0,
-  right: new V3(1, 0, 0), upv: new V3(0, 1, 0), ready: false,
+  right: new V3(1, 0, 0), upv: new V3(0, 1, 0), ready: false, back: 1,
   hero: null, heroT: 0,   // in combat the camera follows one plane (a new one with each shot) and the area it fights in
   nextShot() {
     const others = SHOTS.filter(s => s !== this.shot); this.shot = pick(others);
@@ -65,11 +68,13 @@ const CAM = {
     else if ((this.heroT -= dt) <= 0) { this.heroT = CFG.shotLen * rand(0.8, 1.2); this.pickHero(); }   // fixed: only the hero changes
     const tg = this.target(), k = 1 - Math.exp(-dt * 0.45);
     this.cur.az += angleWrap((tg.az - this.cur.az) * DEG) / DEG * k; this.cur.el = lerp(this.cur.el, tg.el, k); this.cur.dist = lerp(this.cur.dist, tg.dist, k);
+    const want = clamp(h.pos.distanceTo(this.focus) / (HERO_FIT * this.baseDist()), 1, HERO_BACK) * this.combatK + (1 - this.combatK);
+    this.back += (want - this.back) * (1 - Math.exp(-dt * (want > this.back ? 0.8 : 0.25)));
     this.place();
   },
+  baseDist() { return this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3) * Math.max(1, FIT_ASPECT / Math.max(0.2, camera.aspect)); },
   place() {
-    const fit = Math.max(1, FIT_ASPECT / Math.max(0.2, camera.aspect));
-    const dist = this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3) * fit;
+    const dist = this.baseDist() * this.back;
     const th = this.heading + this.cur.az * DEG, el = clamp(this.cur.el, 3, 85) * DEG;
     _co.set(Math.sin(th) * Math.cos(el), Math.sin(el), Math.cos(th) * Math.cos(el)).multiplyScalar(dist);
     camera.position.copy(this.focus).add(_co); camera.position.y = Math.max(camera.position.y, TERRAIN.height(camera.position.x, camera.position.z) + 6);
