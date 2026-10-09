@@ -30,7 +30,7 @@ class Plane {
   groundAhead(t) { const k = this.speed * t; return Math.max(TERRAIN.height(this.pos.x, this.pos.z), TERRAIN.height(this.pos.x + this.dir.x * k, this.pos.z + this.dir.z * k)); }
   place(p, heading, pitch) {
     this.pos.copy(p); this.dir.set(Math.sin(heading) * Math.cos(pitch || 0), Math.sin(pitch || 0), Math.cos(heading) * Math.cos(pitch || 0));
-    this.up.set(0, 1, 0); this.orthoUp(); this.cmd.copy(this.dir); this.rm = 1; this.rollV = 0;
+    this.up.set(0, 1, 0); this.orthoUp(); this.cmd.copy(this.dir); this.rm = 1; this.rollV = 0; this.low = false; this.side = 1;   // a pooled aircraft starts afresh
   }
   orthoUp() {
     this.up.addScaledVector(this.dir, -this.up.dot(this.dir));

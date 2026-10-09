@@ -190,7 +190,7 @@ const SQUAD = {
     ROUTE.pos.copy(_c); ROUTE.heading = ROUTE.tgtHeading = Math.atan2(_tg.x, _tg.z);
     ROUTE.alt = ROUTE.tgtAlt = clamp(_c.y, 40, 140); ROUTE.speed = ROUTE.cruise * 0.7; ROUTE.turnT = rand(15, 30);
     ROUTE.pos.addScaledVector(_tg.setY(0).normalize(), -10);
-    for (const p of this.planes) { this.release(p); p.mode = 'rejoin'; }
+    for (const p of this.planes) { this.release(p); p.mode = 'rejoin'; p.evadeAt = -1; }   // no break left over for the next fight
     this.formT = rand(45, 110);
   },
   /* lower score = better: near, ahead of the nose, in the battle area, not taken yet — plus teamwork */

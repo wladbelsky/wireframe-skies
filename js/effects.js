@@ -33,7 +33,9 @@ class Trail {
     this.pos[0] = p.x; this.pos[1] = p.y; this.pos[2] = p.z;   // the head follows the aircraft every step
     this.sync();
   }
-  sync() { const g = this.line.geometry; g.attributes.position.needsUpdate = true; g.setDrawRange(0, this.n); }
+  sync() {   // upload only the drawn points
+    const g = this.line.geometry, a = g.attributes.position; a.needsUpdate = true; a.updateRange.offset = 0; a.updateRange.count = Math.max(1, this.n) * 3; g.setDrawRange(0, this.n);
+  }
   shift(dx, dz) { for (let i = 0; i < TRAIL_MAX * 3; i += 3) { this.pos[i] -= dx; this.pos[i + 2] -= dz; } }
 }
 
@@ -175,7 +177,7 @@ const BURSTS = {
     const b = this.pool.find(x => x.t >= x.life) || this.pool.reduce((a, x) => (x.t / x.life > a.t / a.life ? x : a));
     b.t = 0; b.life = ground ? 1.6 : 1.1; b.r = r; b.ground = ground; b.p.copy(p); b.c.copy(color); b.gy = ground ? TERRAIN.height(p.x, p.z) : 0;
     const n = Math.round(8 + r * 2);
-    for (let i = 0; i < n; i++) GLOW.spawn(p, { v: new V3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(4, 14) * r / 3), c: i % 3 ? PAL.flare : color, s: rand(0.6, 1.3), a: 0.8, life: rand(0.4, 1.1), drag: 1.5, grav: ground ? 6 : 2 });
+    for (let i = 0; i < n; i++) GLOW.spawn(p, { v: _bv.set(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(4, 14) * r / 3), c: i % 3 ? PAL.flare : color, s: rand(0.6, 1.3), a: 0.8, life: rand(0.4, 1.1), drag: 1.5, grav: ground ? 6 : 2 });
     GLOW.spawn(p, { c: PAL.white, s: r * 2.6, life: 0.3 });
   },
   update(dt) { for (const b of this.pool) if (b.t < b.life) b.t += dt; },
@@ -190,7 +192,7 @@ const BURSTS = {
   },
   shift(dx, dz) { for (const b of this.pool) { b.p.x -= dx; b.p.z -= dz; } }
 };
-const _bg = new V3();
+const _bg = new V3(), _bv = new V3();
 
 /* ---- MISSILES: pooled; friendly ones always reach a live target, hostile ones always lose lock ----
    Each keeps a short smoke history drawn through LINES. */

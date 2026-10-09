@@ -5,7 +5,8 @@ let T = 0, paused = false, fpsLimit = 0, lastMs = 0, ready = false;
 
 /* ---- URL test parameters (browser preview) ---- */
 const QS = new URLSearchParams(location.search);
-if (QS.has('zoom')) CFG.zoom = parseFloat(QS.get('zoom'));
+const qNum = k => { const v = parseFloat(QS.get(k)); return Number.isFinite(v) ? v : null; };   // a mistyped value is ignored, not NaN
+if (qNum('zoom') != null) CFG.zoom = qNum('zoom');
 if (QS.has('cam')) CFG.camMode = QS.get('cam') === 'fixed' ? 'fixed' : 'cinematic';
 
 /* ---- Wallpaper Engine properties ---- */
@@ -42,7 +43,8 @@ function applySettings() {
   syncPalette();
   if (!ready) return;
   SQUAD.recolor(); ENEMIES.recolor(); ALLIES.recolor();
-  if (CFG.camMode === 'fixed') CAM.shotT = 0;
+  // a shorter shot length applies now, not after the running shot / hero (up to 1.2 × the old length)
+  CAM.shotT = Math.min(CAM.shotT, CFG.shotLen * 1.2); CAM.heroT = Math.min(CAM.heroT, CFG.shotLen * 1.2);
 }
 
 /* ---- init ---- */
@@ -89,7 +91,8 @@ function step(dt) {
 /* ---- per-frame visuals (after the steps): dynamic lines, glow points, ground ---- */
 function draw() {
   LINES.begin(); GLOW.begin();
-  ALLIES.draw(); ENEMIES.draw(); SQUAD.draw(); MISSILES.draw(); TRACERS.draw(); BURSTS.draw(); GLOW.drawParts();
+  SQUAD.draw(); ALLIES.draw(); ENEMIES.draw(); MISSILES.draw();   // the flight first: if LINES ever fills up, it is never what drops out (additive, so order doesn't show)
+  TRACERS.draw(); BURSTS.draw(); GLOW.drawParts();
   const c = renderer.domElement;
   LINES.end(c.width, c.height, renderer.getPixelRatio()); GLOW.end(camera, c.height);
   TERRAIN.update(camera, CAM.focus);
@@ -97,7 +100,7 @@ function draw() {
 }
 
 /* ---- main loop ---- */
-const TIME_SCALE = Math.max(1, Math.round(parseFloat(QS.get('ts') || '1')));
+const TIME_SCALE = Math.max(1, Math.round(qNum('ts') || 1));
 let frameDue = 0;
 function frame(ms) {
   requestAnimationFrame(frame);

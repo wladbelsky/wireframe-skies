@@ -17,6 +17,7 @@ const ENEMY_TYPES = {
   destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', aa: true, max: 3 }
 };
 
+const AA_MAX = 4;   // AA streams per beat (the tracer pool is a ring: more would cut live streams short)
 const UNTOUCHED_MAX = 5;   // no new wave while this many enemies nobody has gone for yet are around (× density over 100%)
 const ACE_P = 0.15, ACE_CALLSIGNS = ['SHADOW', 'RAVEN', 'SPECTRE', 'NOMAD', 'WRAITH', 'JACKAL', 'MANTIS', 'BANSHEE', 'COYOTE', 'HYDRA'];
 const _e = new V3(), _r = new V3(), _q = new V3(), _b = new V3();
@@ -96,19 +97,27 @@ class EnemyForce extends Force {
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
   onBeat(band) {
     if (!CFG.enemyFire) return;
-    if (band === 'mid' && Math.random() < 0.5) {   // AA guns and ships' AA: streams that miss
-      for (const g of this.list) {
-        if (!g.alive || (g.ty.fires !== 'guns' && !g.ty.aa)) continue;
+    if (band === 'mid' && Math.random() < 0.5) {   // AA guns and ships' AA: streams that miss, from a few of them (random start)
+      const L = this.list, k0 = randi(0, L.length - 1);
+      for (let k = 0, shots = 0; k < L.length && shots < AA_MAX; k++) {
+        const g = L[(k0 + k) % L.length];
+        if (!g.alive || g.t < APPEAR_T || (g.ty.fires !== 'guns' && !g.ty.aa)) continue;   // a contact still appearing doesn't fire yet
         const f = this.nearestFriend(g.pos, 220); if (!f) continue;
+        shots++;
         _q.set(g.pos.x, g.pos.y + (g.ty.cls === 'sea' ? 5 : 4), g.pos.z);
         _r.subVectors(f.pos, _q).normalize().add(_b.set(rand(-0.12, 0.12), rand(0.05, 0.15), rand(-0.12, 0.12))).normalize().multiplyScalar(90);
         for (let i = 0; i < 3; i++) TRACERS.spawn(_e.copy(_q).addScaledVector(_r, i * 0.03), _r, 2.2, true);
       }
     }
     if (band === 'low' || this.fireT > 0) return;
-    const shooters = this.list.filter(e => e.alive && e.ty.fires === 'missile' && e.cd <= 0 && this.nearestFriend(e.pos, e.plane ? 200 : 300));
-    if (!shooters.length) return;
-    const s = wpick(shooters.map(e => ({ k: e, w: e.plane ? 3 : 1 }))).k, f = this.nearestFriend(s.pos, 300);   // aircraft first: the dogfight keeps its missiles
+    // one shooter, aircraft weighted first (the dogfight keeps its missiles): a weighted pick in one pass, no arrays
+    let s = null, ws = 0;
+    for (const e of this.list) {
+      if (!e.alive || e.t < APPEAR_T || e.ty.fires !== 'missile' || e.cd > 0 || !this.nearestFriend(e.pos, e.plane ? 200 : 300)) continue;
+      const w = e.plane ? 3 : 1; ws += w; if (Math.random() * ws < w) s = e;
+    }
+    if (!s) return;
+    const f = this.nearestFriend(s.pos, 300);
     if (s.plane) { _r.subVectors(f.pos, s.pos).normalize(); if (s.plane.dir.dot(_r) < 0.5) return; _q.copy(s.pos).addScaledVector(s.plane.dir, 2); _r.copy(s.plane.dir); }
     else { _q.set(s.pos.x, s.pos.y + (s.ty.cls === 'sea' ? 4 : 3), s.pos.z); _r.subVectors(f.pos, _q).normalize(); _r.y = Math.max(_r.y, 0.4); _r.normalize(); }
     if (!MISSILES.fire({ p: _q, d: _r, speed: s.plane ? s.plane.speed + 5 : 12, target: f, hit: false, enemy: true })) return;   // pool full: no launch, no threat

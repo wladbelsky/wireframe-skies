@@ -58,3 +58,18 @@ test('the loading splash covers the start, then dissolves', async ({ wp }) => {
   await wp.sim(3);   // SPLASH_T = 2.5
   expect(await wp.run(() => { const s = document.getElementById('splash'); return !s || s.classList.contains('off'); })).toBe(true);
 });
+
+test('a shorter shot length applies to the running shot; bad URL numbers are ignored', async ({ wp }) => {
+  await wp.boot({ query: '?zoom=abc&ts=x' });
+  const r = await wp.run(() => {
+    __t.props({ shotlength: 60 }); CAM.nextShot(); const long = CAM.shotT;
+    __t.props({ shotlength: 8 });
+    __t.sim(1);
+    return { long, now: CAM.shotT, zoom: CFG.zoom, cam: camera.position.toArray().every(Number.isFinite), ts: TIME_SCALE };
+  });
+  expect(r.long).toBeGreaterThan(40);
+  expect(r.now).toBeLessThanOrEqual(8 * 1.2);
+  expect(r.zoom).toBe(100);
+  expect(r.cam).toBe(true);
+  expect(r.ts).toBe(1);
+});

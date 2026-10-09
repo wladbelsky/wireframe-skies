@@ -42,7 +42,7 @@ class Force {
     const s = this.slot(type); if (!s) return null;
     s.gen = (s.gen || 0) + 1;   // a new life for this slot: missiles aimed at the previous one ignore it
     s.inUse = true; s.alive = true; s.state = 'live'; s.t = 0; s.hp = s.ty.hp || 1; s.incoming = 0; s.chasers = 0; s.cd = rand(2, 5); s.mode = 'cruise'; s.modeT = rand(4, 8);
-    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false; s.downed = false; s.hurt = false;
+    s.name = name || pick(s.ty.names); s.heading = heading; s.target = null; s.ace = false; s.mop = false; s.downed = false; s.hurt = false; s.full = false;
     setLabel(s.label, s.name, this.css, false);
     if (s.plane) { s.plane.place(pos, heading, 0); s.plane.speed = s.plane.tgtSpeed = s.ty.speed * CFG.speed / 100; s.plane.man = null; s.trail.reset(s.pos); s.vel.copy(s.plane.dir).multiplyScalar(s.plane.speed); }
     else { s.pos.set(pos.x, TERRAIN.height(pos.x, pos.z), pos.z); s.vel.set(0, 0, 0); }   // on the ground (ships: sea level)
@@ -129,7 +129,7 @@ class Force {
       } else if (e.state === 'live' && e.t < APPEAR_T) {
         this.appear(e, c); shown = this.typed(e);
         a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
-      } else if (e.state === 'live') setLabel(e.label, e.name, this.css, false);   // the whole name (a no-op once set)
+      } else if (e.state === 'live' && !e.full) { setLabel(e.label, e.name, this.css, false); e.full = true; }   // the whole name, once
       if (e.ground) {
         const y = e.pos.y;
         drawMarker(g, e.pos.x, y, e.pos.z, e.heading, e.ty.scale, c, a, 2);
@@ -163,7 +163,7 @@ class Force {
   }
   recolor() {
     this.css = cssOf(this.color);
-    for (const pool of Object.values(this.slots)) for (const s of pool) { if (s.trail) s.trail.recolor(this.color); if (s.inUse) setLabel(s.label, s.name, this.css, s.state === 'struck' || s.state === 'fade'); }
+    for (const pool of Object.values(this.slots)) for (const s of pool) { if (s.trail) s.trail.recolor(this.color); if (s.inUse) setLabel(s.label, s.name, this.css, s.state === 'struck' || (s.state === 'fade' && s.downed)); }
   }
   shift(dx, dz) {
     for (const pool of Object.values(this.slots)) for (const s of pool) { s.pos.x -= dx; s.pos.z -= dz; if (s.trail) s.trail.shift(dx, dz); }

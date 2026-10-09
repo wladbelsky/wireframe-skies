@@ -27,7 +27,6 @@
 
   /* ---- helpers ---- */
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-  const weToHex = s => '#' + s.split(' ').map(c => Math.round(clamp(parseFloat(c), 0, 1) * 255).toString(16).padStart(2, '0')).join('');
   const hexToWe = h => [1, 3, 5].map(i => (parseInt(h.substr(i, 2), 16) / 255).toFixed(3)).join(' ');
   const condFn = c => { try { return new Function('v', 'return (' + c.replace(/(\w+)\.value/g, 'v["$1"]') + ');'); } catch (e) { return () => true; } };
   const GROUPS = [[0, 9, 'Camera'], [10, 19, 'Audio & combat'], [20, 29, 'Look'], [30, 39, 'Flight']];
@@ -67,7 +66,7 @@
         for (const o of p.options) { const op = el('option', null, o.label); op.value = o.value; ctrl.append(op); }
         ctrl.value = vals[k]; ctrl.onchange = () => set(ctrl.value);
       } else if (p.type === 'color') {
-        ctrl = el('input'); ctrl.type = 'color'; ctrl.value = weToHex(vals[k]);
+        ctrl = el('input'); ctrl.type = 'color'; ctrl.value = rgbFromWE(vals[k]);
         ctrl.oninput = () => set(hexToWe(ctrl.value));
       } else {
         ctrl = el('input'); ctrl.type = 'text'; ctrl.maxLength = 14; ctrl.value = vals[k];
@@ -105,13 +104,13 @@
   pickBtn.onclick = () => pickIn.click();
   pickIn.onchange = () => {
     const f = pickIn.files && pickIn.files[0]; if (!f) return;
-    if (FA.el) { FA.el.pause(); URL.revokeObjectURL(FA.el.src); }
+    if (FA.el) { FA.el.pause(); URL.revokeObjectURL(FA.el.src); FA.src.disconnect(); FA.an.disconnect(); }   // the old chain leaves the graph
     if (!FA.ctx) FA.ctx = new (window.AudioContext || window.webkitAudioContext)();
     const a = new Audio(URL.createObjectURL(f)); a.loop = FA.loopCtl.checked; a.volume = FA.volCtl.value / 100;
     const src = FA.ctx.createMediaElementSource(a);
     FA.an = FA.ctx.createAnalyser(); FA.an.fftSize = 2048; FA.an.smoothingTimeConstant = 0.3; FA.an.minDecibels = -90; FA.an.maxDecibels = -10;
     src.connect(FA.an); FA.an.connect(FA.ctx.destination);
-    FA.bins = new Uint8Array(FA.an.frequencyBinCount); FA.el = a;
+    FA.bins = new Uint8Array(FA.an.frequencyBinCount); FA.el = a; FA.src = src;
     a.onplay = () => { FA.playing = true; playBtn.textContent = '❚❚ PAUSE'; };
     a.onpause = a.onended = () => { FA.playing = false; playBtn.textContent = '▶ PLAY'; };
     nameEl.textContent = f.name;
