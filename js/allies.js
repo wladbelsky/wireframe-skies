@@ -16,8 +16,9 @@ const ALLY_TYPES = {
 };
 const ALLY_CALLSIGNS = ['VIPER', 'COBRA', 'LANCER', 'FALCON', 'HAWK', 'SABER', 'RAPIER', 'TALON'];
 const ALLY_CAP = 14;
+const SEP_R = 24, SEP_K = 1.6;   // allied aircraft keep apart: chasing the same enemy they merged into one glyph
 
-const _a = new V3(), _ad = new V3(), _ab = new V3();
+const _a = new V3(), _ad = new V3(), _ab = new V3(), _as = new V3();
 class AllyForce extends Force {
   constructor() { super(ALLY_TYPES, 'ally'); this.groupT = rand(8, 20); this.fireT = 2; this.shots = 0; }
   update(dt) {
@@ -56,14 +57,43 @@ class AllyForce extends Force {
   fly(e, dt) {
     const pl = e.plane;
     if (e.type === 'fighter' && SQUAD.engaged) {
-      // in a fight: chase the nearest enemy aircraft near the battle area
-      if (!e.target || !e.target.alive) e.target = ENEMIES.nearest(e.pos, 500, x => !!x.plane);
-      if (e.target) { _a.copy(e.target.pos).addScaledVector(e.target.vel, 1).sub(e.pos).normalize(); return this.steerAir(e, _a, dt, 1.6); }
+      // in a fight: chase an enemy aircraft near the battle area (spread over them, see pickAir)
+      if (!e.target || !e.target.alive) e.target = this.pickAir(e);
+      if (e.target) {
+        _a.copy(e.target.pos).addScaledVector(e.target.vel, 1).sub(e.pos);
+        if (e.wing) { _ab.set(-_a.z, 0, _a.x).normalize(); _a.addScaledVector(_ab, (e.wing % 2 ? 1 : -1) * Math.ceil(e.wing / 2) * 16); }   // a second / third one on it: to its side
+        return this.steerAir(e, _a.normalize(), dt, 1.6);
+      }
     }
     e.target = null;
     // cruise: hold the heading and the altitude band
     _a.set(Math.sin(e.heading), 0, Math.cos(e.heading)); _a.y = ((e.ty.alt[0] + e.ty.alt[1]) / 2 - pl.agl) * 0.01;
     this.steerAir(e, _a, dt, 1);
+  }
+  /* the nearest enemy aircraft within 500, each other allied fighter already on it counts 150 farther (they spread out);
+     e.wing = how many are on it already (they aim beside it) */
+  pickAir(e) {
+    let best = null, bs = Infinity, bn = 0;
+    for (const x of ENEMIES.list) {
+      if (!x.alive || !x.plane) continue;
+      let s = x.pos.distanceTo(e.pos), n = 0; if (s > 500) continue;
+      for (const o of this.list) if (o !== e && o.alive && o.target === x) n++;
+      s += n * 150; if (s < bs) { bs = s; best = x; bn = n; }
+    }
+    e.wing = bn; return best;
+  }
+  /* allied aircraft keep apart (and clear of the flight): the wish D is pushed away from any closer than SEP_R */
+  steerAir(e, D, dt, rateMul) {
+    D.y = clamp(D.y, -0.5, 0.5); if (D.lengthSq() < 1e-6) D.copy(e.plane.dir); D.normalize();
+    this.separate(e, D, this.list); this.separate(e, D, SQUAD.planes);
+    super.steerAir(e, D, dt, rateMul);
+  }
+  separate(e, D, list) {
+    for (const o of list) {
+      if (o === e || (o.force && (!o.plane || o.state !== 'live'))) continue;
+      _as.subVectors(e.pos, o.pos); const d = _as.length();
+      if (d < SEP_R && d > 1e-3) { _as.y *= 0.5; D.addScaledVector(_as, SEP_K * (1 - d / SEP_R) / d); }
+    }
   }
   /* in a fight: one allied missile per beat at most, from a ship / SAM / fighter with an enemy in range */
   onBeat(band) {
