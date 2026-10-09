@@ -79,7 +79,7 @@ class EnemyForce extends Force {
   }
   fly(e, dt) {
     const pl = e.plane;
-    e.modeT -= dt; e.cd -= dt;
+    e.modeT -= dt;
     const tgt = this.nearestFriend(e.pos);
     if (e.state === 'retreat') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; }   // turn away and climb
     else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - pl.agl) * 0.05; }

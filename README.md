@@ -22,7 +22,7 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
   between attacks, damaged and long-ignored targets come first, and the next wave arrives once this one is under way.
   New targets appear like radar contacts: a ping, the pole rising from the ground, the name typing out.
   A destroyed target gets a red **X** and its name is struck through, then it fades away.
-- **Enemies fire back** (red missiles, AA gun streams), but never hit: the targeted plane breaks and pops flares.
+- **Enemies fire back** (red missiles from fighters, SAM sites and ships, AA gun streams), but never hit: the targeted plane breaks and pops flares.
 - When the music stops the flight holds for a few seconds, then finishes off the targets still on screen (for up to
   14 s, without music); every other enemy retreats — aircraft turn away, ground units flicker out. Then the flight
   rejoins its formation.

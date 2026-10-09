@@ -178,3 +178,33 @@ test('a sure-hit missile is not lost to a ridge; a vanishing aircraft does not f
   expect(r.hit).toBe(1);
   expect(Math.abs(r.dy1 - r.dy0), 'no dive while fading').toBeLessThan(1e-6);
 });
+
+test('ships and SAM sites fire missiles too (enemy and allied)', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.props({ enemydensity: 0 });
+    // a sea spot and a land spot near the flight (move the map until both are close)
+    const c = SQUAD.centroid(new THREE.Vector3()), spot = (sea) => {
+      for (let d = 60; d < 260; d += 20) for (let a = 0; a < 16; a++) {
+        const x = c.x + Math.sin(a * TAU / 16) * d, z = c.z + Math.cos(a * TAU / 16) * d, l = TERRAIN.land(x, z);
+        if (sea ? l < -0.15 : l > 0.15) return new THREE.Vector3(x, 0, z);
+      }
+      return null;
+    };
+    let sea = null, land = null;
+    for (let i = 0; i < 4000 && !(sea && land); i++) {
+      WORLD.origin.x += Math.round(rand(-20000, 20000)); WORLD.origin.z += Math.round(rand(-20000, 20000)); sea = spot(true); land = spot(false);
+    }
+    const from = {}, f = MISSILES.fire.bind(MISSILES);
+    MISSILES.fire = (o) => { for (const F of [ENEMIES, ALLIES]) for (const e of F.list) if (e.alive && !e.plane && e.pos.distanceTo(o.p) < 6) from[F === ENEMIES ? 'enemy ' + e.type : 'ally ' + e.type] = 1; return f(o); };
+    for (const e of [ENEMIES.spawn('frigate', sea, 0), ENEMIES.spawn('sam', land, 0)]) e.hp = 99;   // not sunk before their turn to fire
+    ALLIES.spawn('aegis', sea.clone().add(new THREE.Vector3(30, 0, 0)), 0); ALLIES.spawn('sam', land.clone().add(new THREE.Vector3(30, 0, 0)), 0);
+    ENEMIES.spawn('bomber', c.clone().add(new THREE.Vector3(0, 40, 0)), 0);   // something for the allies to shoot at
+    __t.forceFight();
+    const v = __t.sim(40, { audio: true, until: () => Object.keys(from).length === 4 }).violations;
+    return { v: v.slice(0, 5), from: Object.keys(from).sort(), found: !!(sea && land) };
+  });
+  expect(r.found).toBe(true);
+  expect(r.v).toEqual([]);
+  expect(r.from).toEqual(['ally aegis', 'ally sam', 'enemy frigate', 'enemy sam']);
+});

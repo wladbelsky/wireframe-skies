@@ -87,7 +87,7 @@ class Force {
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const e = this.list[i];
-      e.t += dt;
+      e.t += dt; if (e.alive) e.cd -= dt;   // weapon cooldown: aircraft, ships and SAM sites alike
       if (e.state === 'struck' && e.t > STRUCK_T) { e.state = 'fade'; e.t = 0; }
       if ((e.state === 'fade' && e.t >= FADE_T) || (e.state === 'retreat' && e.t >= e.retT)) { this.free(e); continue; }
       if (e.plane) { if (e.state === 'live' || e.state === 'retreat') this.fly(e, dt); else if (e.downed) this.fall(e, dt); else this.coast(e, dt); }

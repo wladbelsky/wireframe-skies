@@ -207,6 +207,7 @@ const SQUAD = {
       else s += e.chasers * 160 + (lead ? e.pos.distanceTo(lead.pos) * 0.5 : 0);   // spread over the targets; a wingman stays near its lead
       if (this.started(p, e) || this.started(mate, e)) s -= 200;   // finish what the element started
       if (e.hurt) s -= 180;
+      if (mop) s += (e.hp - e.incoming - 1) * 150;   // no music, little time: what goes down with one more hit first
       s -= Math.min(e.t, 60) * 5;   // been there a long time: its turn
       if (e.plane && e.mode === 'dogfight' && this.onTail(p, e)) s -= 120;   // on a mate's tail: clear it
       if (s < bs) { bs = s; best = e; }
@@ -234,6 +235,8 @@ const SQUAD = {
     if (p.mode === 'engage' && t && p.extendT > 0) {
       // too close to bring the nose onto it (it sits inside the turn): fly out, climb to attack height, turn in again
       p.extendT -= dt; p.ready = 0;
+      if (t.ground && p.pos.distanceTo(t.pos) > 190) p.extendT = 0;   // a ground target: out until there is room to dive onto it
+      if (p.extendT <= 0) p.noAim = -NOAIM_T;   // done: time to turn back in before it counts as circling again
       _D.subVectors(p.pos, t.pos).setY(0); if (_D.lengthSq() < 1) _D.copy(p.dir).setY(0); _D.normalize();
       _D.y = clamp((ATTACK_AGL - p.agl) * 0.01, -0.3, 0.4); _D.normalize();
     } else if (p.mode === 'engage' && t) {
@@ -250,7 +253,7 @@ const SQUAD = {
       const inRange = d > 35 && d < (t.ground ? 190 : 210) && aim > 0.86;
       p.ready = inRange && p.cd <= 0 ? p.ready + dt : 0;
       p.noAim = inRange || d > 260 ? 0 : (p.noAim || 0) + dt;   // circling close without a shot → extend
-      if (p.noAim > NOAIM_T) { p.noAim = 0; p.extendT = rand(3, 4.5); }
+      if (p.noAim > NOAIM_T) { p.noAim = 0; p.extendT = t.ground ? 7 : rand(3, 4.5); }
       if (this.firing && p.ready > (this.mopT > 0 ? 0.7 : 1.6)) this.shoot(p);   // no beats (quiet music / mop-up): shoot anyway
       if (d < 26 || (t.ground && d < 45 && p.agl < 30)) { this.release(p); this.afterShot(p); }   // overshoot: break off
     } else if (this.isWing(p) && !p.maneuvering) this.cover(p, this.mate(p));
