@@ -25,36 +25,36 @@ const GLYPHS = {
   ship: glyph(s => flatPoly(s, [[0, 2.2], [0.75, 1.0], [0.75, -1.7], [0.45, -2.2], [-0.45, -2.2], [-0.75, -1.7], [-0.75, 1.0]])),
   carrier: glyph(s => { flatPoly(s, [[0, 2.6], [0.9, 1.8], [1.1, -2.6], [-0.9, -2.6], [-0.9, 1.8]]); s.line([-0.6, 0, -2.2], [0.5, 0, 1.4]).line([0.95, 0, -0.4], [0.95, 0, 0.6]); }),
   /* ---- bosses (js/bosses.js) ---- */
-  // Arsenal Bird: a flying wing with a sawtooth trailing edge, two engine pods, a launch bay
-  arsenal: glyph(s => { flatPoly(s, [[0, 1.6], [3.4, -0.9], [3.2, -1.3], [1.6, -0.9], [0.8, -1.4], [0, -1.0], [-0.8, -1.4], [-1.6, -0.9], [-3.2, -1.3], [-3.4, -0.9]]);
-    for (const x of [-1, 1]) s.line([x, -0.15, -1.1], [x, -0.15, 0.5]).line([x * 1.25, -0.15, -1.1], [x * 1.25, -0.15, 0.3]);
-    flatPoly(s, [[-0.35, -0.2], [0.35, -0.2], [0.35, 0.6], [-0.35, 0.6]]); }),
-  // heavy command cruiser (Aigaion / Hresvelgr): long fuselage, a huge wing with a row of engines, twin tails
-  cruiser: glyph(s => { flatPoly(s, [[0, 2.7], [0.35, 2.2], [0.35, -2.4], [-0.35, -2.4], [-0.35, 2.2]]); flatPoly(s, [[-3.1, -0.7], [-0.35, 0.9], [0.35, 0.9], [3.1, -0.7], [2.8, -1.1], [-2.8, -1.1]]);
-    for (const x of [-2.2, -1.5, -0.8, 0.8, 1.5, 2.2]) s.line([x, 0, -1.0], [x, 0, -1.5]);
-    for (const x of [-0.6, 0.6]) s.line([x, 0, -1.9], [x * 1.3, 0.7, -2.5]); }),
+  // Arsenal Bird: a flying wing (a shallow chevron), two big pusher propellers in the middle, six small ones along the trailing edge
+  arsenal: glyph(s => { flatPoly(s, [[0, 1.1], [3.4, -0.5], [3.4, -0.9], [0, -0.6], [-3.4, -0.9], [-3.4, -0.5]]);
+    for (const x of [-0.55, 0.55]) s.line([x - 0.4, 0, -0.85], [x + 0.4, 0, -0.85]);
+    for (const x of [-2.6, -1.9, -1.2, 1.2, 1.9, 2.6]) { const z = -0.6 - Math.abs(x) * 0.09 - 0.15; s.line([x - 0.2, 0, z], [x + 0.2, 0, z]); } }),
+  // heavy command cruiser (Aigaion / Hresvelgr): a manta ray — broad wings, a thin tail, engines along the trailing edges
+  cruiser: glyph(s => { flatPoly(s, [[0, 1.5], [0.8, 1.2], [3.0, -0.4], [2.6, -0.8], [0.4, -0.9], [-0.4, -0.9], [-2.6, -0.8], [-3.0, -0.4], [-0.8, 1.2]]);
+    s.line([0, 0, -0.9], [0, 0, -2.4]);
+    for (const x of [1.2, 1.8, 2.4]) for (const k of [-1, 1]) s.line([k * x, 0, -0.85 + (x - 1.2) * 0.04], [k * x, 0, -1.15 + (x - 1.2) * 0.04]); }),
   // SOLG: a long gun barrel (muzzle ring forward), the drum, two solar panels
   solg: glyph(s => { s.line([0.25, 0, -1.4], [0.25, 0, 2.7]).line([-0.25, 0, -1.4], [-0.25, 0, 2.7]).ring(0, 0, 2.7, 0.4, 10).ring(0, 0, -1.4, 0.7, 12).ring(0, 0, -2.4, 0.7, 12);
     for (const x of [-1, 1]) { s.line([x * 0.7, 0, -1.9], [x * 0.95, 0, -1.9]); flatPoly(s, [[x * 0.95, -2.5], [x * 3.1, -2.5], [x * 3.1, -1.3], [x * 0.95, -1.3]]); s.line([x * 2.0, 0, -2.5], [x * 2.0, 0, -1.3]); } }),
-  // a superfighter (Morgan / Nosferatu / Falken / Mr. X): long nose, canards, swept wing, twin fins
-  superace: glyph(s => { flatPoly(s, [[0, 2.3], [0.4, 0.6], [1.6, -0.9], [1.6, -1.3], [0.5, -1.0], [0.35, -1.5], [-0.35, -1.5], [-0.5, -1.0], [-1.6, -1.3], [-1.6, -0.9], [-0.4, 0.6]]);
-    for (const x of [-1, 1]) s.line([x * 0.4, 0, 1.0], [x * 1.0, 0, 0.65]).line([x * 0.3, 0, -0.8], [x * 0.55, 0.65, -1.35]); }),
   // Stonehenge: a ring of eight railguns pointing out, a control hub
   stonehenge: glyph(s => { s.ring(0, 0, 0, 1.0, 24, 'y').ring(0, 0, 0, 0.3, 10, 'y');
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, c = Math.cos(a), n = Math.sin(a); s.line([c, 0, n], [c * 1.9, 0, n * 1.9]).line([c * 1.1 - n * 0.18, 0, n * 1.1 + c * 0.18], [c * 1.1 + n * 0.18, 0, n * 1.1 - c * 0.18]); } }),
-  // Excalibur: the tower's footprint (the tower itself is drawn up the pole)
-  excalibur: glyph(s => { s.ring(0, 0, 0, 1.1, 6, 'y'); flatPoly(s, [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]); s.line([-0.5, 0, -0.5], [0.5, 0, 0.5]).line([0.5, 0, -0.5], [-0.5, 0, 0.5]); }),
-  // Land Battleship: a long hull, three triple turrets, four tread units a side
-  landship: glyph(s => { flatPoly(s, [[0, 2.6], [0.9, 1.9], [0.9, -2.3], [0.6, -2.6], [-0.6, -2.6], [-0.9, -2.3], [-0.9, 1.9]]);
-    for (const z of [1.3, 0.4, -1.5]) { s.ring(0, 0, z, 0.32, 8, 'y'); const f = z < 0 ? -1 : 1; for (const x of [-0.12, 0, 0.12]) s.line([x, 0, z + f * 0.3], [x, 0, z + f * 0.85]); }
-    for (const x of [-1.15, 1.15]) for (const z of [-2.2, -1.1, 0, 1.1]) s.line([x, 0, z], [x, 0, z + 0.85]); }),
-  // Scinfaxi / Hrimfaxi: a submarine carrier — a long rounded hull, the sail, the flight deck, cross fins
-  subcarrier: glyph(s => { flatPoly(s, [[0, 2.8], [0.45, 2.3], [0.6, 1.2], [0.6, -1.8], [0.35, -2.6], [-0.35, -2.6], [-0.6, -1.8], [-0.6, 1.2], [-0.45, 2.3]]);
-    flatPoly(s, [[-0.15, -0.9], [0.15, -0.9], [0.15, -0.2], [-0.15, -0.2]]); s.line([0, 0, 2.2], [0, 0, 0.1]).line([-0.7, 0, -2.4], [0.7, 0, -2.4]); }),
-  // Alicorn: a huge submarine with a railgun on the foredeck
-  alicorn: glyph(s => { flatPoly(s, [[0, 2.0], [0.55, 1.4], [0.6, -2.0], [0.3, -2.7], [-0.3, -2.7], [-0.6, -2.0], [-0.55, 1.4]]);
-    s.ring(0, 0, 0.5, 0.38, 10, 'y').line([0.08, 0, 0.85], [0.08, 0, 3.3]).line([-0.08, 0, 0.85], [-0.08, 0, 3.3]);
-    flatPoly(s, [[-0.15, -1.4], [0.15, -1.4], [0.15, -0.7], [-0.15, -0.7]]); s.line([-0.75, 0, -2.5], [0.75, 0, -2.5]); })
+  // Excalibur: the base — a square platform, four arms with radar towers at the ends (the blade itself rises up the pole)
+  excalibur: glyph(s => { flatPoly(s, [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]);
+    for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { s.line([x * 0.45, 0, z * 0.45], [x * 1.6, 0, z * 1.6]); s.ring(x * 1.8, 0, z * 1.8, 0.2, 8, 'y'); } }),
+  // Land Battleship: a trimaran — the main hull, two tracked side hulls; three turrets (two forward, one aft)
+  landship: glyph(s => { flatPoly(s, [[0, 2.6], [0.5, 2.0], [0.5, -2.4], [-0.5, -2.4], [-0.5, 2.0]]);
+    for (const x of [-1, 1]) { flatPoly(s, [[x * 0.75, 1.5], [x * 1.1, 1.5], [x * 1.1, -2.0], [x * 0.75, -2.0]]); s.line([x * 0.5, 0, 0.6], [x * 0.75, 0, 0.6]).line([x * 0.5, 0, -0.9], [x * 0.75, 0, -0.9]); }
+    for (const [z, f] of [[1.5, 1], [0.8, 1], [-1.6, -1]]) { s.ring(0, 0, z, 0.26, 8, 'y'); s.line([0, 0, z + f * 0.26], [0, 0, z + f * 0.7]); } }),
+  // Scinfaxi / Hrimfaxi: a submarine carrier — a long hull, the sail, missile hatches in a row, the stern platform
+  subcarrier: glyph(s => { flatPoly(s, [[0, 2.6], [0.5, 1.9], [0.5, -1.9], [0, -2.6], [-0.5, -1.9], [-0.5, 1.9]]);
+    flatPoly(s, [[-0.18, 0.7], [0.18, 0.7], [0.18, 1.3], [-0.18, 1.3]]);
+    for (const z of [0.2, -0.3, -0.8]) s.line([-0.2, 0, z], [0.2, 0, z]);
+    flatPoly(s, [[-0.3, -1.3], [0.3, -1.3], [0.3, -1.9], [-0.3, -1.9]]); }),
+  // Alicorn: a trimaran submarine — the main hull, two side hulls (its wings), the rail cannon (its horn) out over the bow
+  alicorn: glyph(s => { flatPoly(s, [[0, 2.2], [0.45, 1.6], [0.45, -2.4], [-0.45, -2.4], [-0.45, 1.6]]);
+    for (const x of [-1, 1]) { flatPoly(s, [[x * 1.2, 0.6], [x * 1.45, 0.2], [x * 1.45, -1.9], [x * 1.2, -2.1]]); s.line([x * 0.45, 0, 0.7], [x * 1.2, 0, 0.3]).line([x * 0.45, 0, -1.3], [x * 1.2, 0, -1.5]); }
+    s.line([0, 0, 0.6], [0, 0, 3.4]); flatPoly(s, [[-0.15, -0.6], [0.15, -0.6], [0.15, -0.1], [-0.15, -0.1]]); })
 };
 
 /* draw a glyph at pos, oriented by fwd (+Z) / up (+Y), scaled, into LINES */
