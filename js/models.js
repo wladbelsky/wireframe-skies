@@ -40,9 +40,8 @@ const GLYPHS = {
   // Excalibur: the base — a square platform, four arms with radar towers at the ends (the blade itself rises up the pole)
   excalibur: glyph(s => { flatPoly(s, [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]);
     for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { s.line([x * 0.45, 0, z * 0.45], [x * 1.6, 0, z * 1.6]); s.ring(x * 1.8, 0, z * 1.8, 0.2, 8, 'y'); } }),
-  // Land Battleship: a trimaran — the main hull and two tracked side hulls
-  landship: glyph(s => { flatPoly(s, [[0, 2.6], [0.5, 2.0], [0.5, -2.4], [-0.5, -2.4], [-0.5, 2.0]]);
-    for (const x of [-1, 1]) { flatPoly(s, [[x * 0.75, 1.5], [x * 1.1, 1.5], [x * 1.1, -2.0], [x * 0.75, -2.0]]); s.line([x * 0.5, 0, 0.6], [x * 0.75, 0, 0.6]).line([x * 0.5, 0, -0.9], [x * 0.75, 0, -0.9]); } }),
+  // Land Battleship: a long box with a pointed bow
+  landship: glyph(s => flatPoly(s, [[0, 2.8], [0.9, 1.9], [0.9, -2.4], [-0.9, -2.4], [-0.9, 1.9]])),
   // Scinfaxi / Hrimfaxi: a submarine carrier — a long hull, the sail, missile hatches in a row, the stern platform
   subcarrier: glyph(s => { flatPoly(s, [[0, 2.6], [0.5, 1.9], [0.5, -1.9], [0, -2.6], [-0.5, -1.9], [-0.5, 1.9]]);
     flatPoly(s, [[-0.18, 0.7], [0.18, 0.7], [0.18, 1.3], [-0.18, 1.3]]);
