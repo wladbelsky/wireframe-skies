@@ -7,7 +7,8 @@
    retreat() (after a fight): aircraft fly off, ground units stay, then they flicker out (the pole sinks) → freed.
    A new unit appears like a radar contact (APPEAR_T): a ping ring, the glyph flickers in, the pole / altitude line
    grows from the ground, the name types out.
-   A type: { cls: 'air' | 'ground' | 'sea', glyph, scale, hp, speed, turn, names, w (weight in groups), fires, alt, max }. */
+   A type: { cls: 'air' | 'ground' | 'sea', glyph, scale, hp, speed, turn, names, w (weight in groups), fires, alt, max,
+   pole (ground / sea: pole height, default POLE_H), boss (js/bosses.js) }. */
 const POLE_H = 18;            // ground / sea units: a vertical line from the marker up to their name
 const STRUCK_T = 1.8, FADE_T = 1.3, FAR_BEHIND = 950, APPEAR_T = 1.3, RETREAT_FLICK = 1.5;
 const easeOut = u => 1 - (1 - u) * (1 - u) * (1 - u);
@@ -58,10 +59,11 @@ class Force {
   damage(e, dmg) {
     if (!e.alive) return;
     e.hp -= dmg;
-    if (e.hp > 0) { e.hurt = true; BURSTS.spawn(e.pos, this.color, 1.2, false); return; }
+    const big = e.ty.boss ? 2 : 1;   // a boss: bigger hits and a bigger end
+    if (e.hp > 0) { e.hurt = true; BURSTS.spawn(e.pos, this.color, 1.2 * big, false); return; }
     e.alive = false; e.state = 'struck'; e.t = 0; e.downed = true; this.kills++;
     this.onGone(e);
-    BURSTS.spawn(e.ground ? _fq.set(e.pos.x, e.pos.y + 1.5, e.pos.z) : e.pos, this.color, e.ground ? 3.5 : 3, e.ground);
+    BURSTS.spawn(e.ground ? _fq.set(e.pos.x, e.pos.y + 1.5, e.pos.z) : e.pos, this.color, (e.ground ? 3.5 : 3) * big, e.ground);
     setLabel(e.label, e.name, this.css, true);
   }
 
@@ -133,11 +135,11 @@ class Force {
         a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
       } else if (e.state === 'live' && !e.full) { setLabel(e.label, e.name, this.css, false); e.full = true; }   // the whole name, once
       if (e.ground) {
-        const y = e.pos.y;
+        const y = e.pos.y, ph = e.ty.pole || POLE_H;
         drawMarker(g, e.pos.x, y, e.pos.z, e.heading, e.ty.scale, c, a, 2);
-        if (CFG.dropLines) LINES.add(e.pos.x, y + 0.15, e.pos.z, e.pos.x, y + POLE_H * grow, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
+        if (CFG.dropLines) LINES.add(e.pos.x, y + 0.15, e.pos.z, e.pos.x, y + ph * grow, e.pos.z, c, 0.95 * a, 0.8 * a, 2.4);
         GLOW.dot(_fx.set(e.pos.x, y + 1.2, e.pos.z), 1.1, c, 0.9 * a);
-        e.label.position.set(e.pos.x, y + (CFG.dropLines ? POLE_H * grow : 3), e.pos.z);
+        e.label.position.set(e.pos.x, y + (CFG.dropLines ? ph * grow : 3), e.pos.z);
       } else {
         drawGlyph(g, e.pos, e.plane.dir, e.plane.up, e.ty.scale, c, a, 2);
         if (CFG.dropLines) LINES.drop(e.pos, c, 0.8 * a, 2.2, grow);
@@ -145,7 +147,7 @@ class Force {
       }
       e.label.visible = CFG.labels && e.state !== 'fade' && shown;
       if (e.state === 'struck') {
-        const r = Math.max(2.5, CAM.distTo(e.pos) * 0.022), blink = e.t < 0.6 ? (Math.floor(e.t * 10) % 2 ? 0.4 : 1) : 1;
+        const r = Math.max(2.5, CAM.distTo(e.pos) * 0.022) * (e.ty.boss ? 2 : 1), blink = e.t < 0.6 ? (Math.floor(e.t * 10) % 2 ? 0.4 : 1) : 1;
         LINES.cross(e.ground ? _fx.set(e.pos.x, e.pos.y + 2.5, e.pos.z) : e.pos, r, c, blink);
       }
     }
