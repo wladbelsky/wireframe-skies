@@ -91,8 +91,10 @@ for (const [name, kinds] of [['air', ['arsenal', 'cruiser', 'solg', 'superace']]
         const at = spotFor(ENEMY_TYPES[k].cls); if (!at) { out.push({ k, skipped: true }); continue; }
         const b = BOSSES.spawnType(k, at); if (!b) { out.push({ k, skipped: true }); continue; }
         const s0 = SQUAD.shots, w = __t.sim(180, { audio: true, until: () => !b.alive }); v.push(...w.violations);
-        out.push({ k, down: b.downed, took: Math.round(w.steps * 0.05), shots: SQUAD.shots - s0, specials: specials[k] || 0 });
-        __t.sim(4, { audio: true });
+        // it goes down in frame: on screen for most of the time it burns (struck)
+        let seen = 0, n = 0; __t.sim(STRUCK_T, { audio: true, until: () => { n++; if (CAM.onScreen(b.pos, 0.03)) seen++; return false; } });
+        out.push({ k, down: b.downed, took: Math.round(w.steps * 0.05), shots: SQUAD.shots - s0, specials: specials[k] || 0, seen: +(seen / n).toFixed(2) });
+        __t.sim(3, { audio: true });
       }
       return { v: v.slice(0, 10), out };
     }, [kinds, `(${spotFor})`]);
@@ -102,6 +104,25 @@ for (const [name, kinds] of [['air', ['arsenal', 'cruiser', 'solg', 'superace']]
     for (const o of fought) {
       expect(o.down, `${o.k} shot down: ${JSON.stringify(o)}`).toBe(true);
       expect(o.specials, `${o.k} special attacks`).toBeGreaterThan(0);
+      expect(o.seen, `${o.k} goes down in frame`).toBeGreaterThan(0.8);
     }
   });
 }
+
+/* in a full fight (regular waves around it) the camera still frames the boss when it goes down */
+test('a boss goes down in frame, in the middle of a full fight', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.forceFight(); const v = __t.sim(30, { audio: true }).violations, out = [];
+    for (const k of ['arsenal', 'cruiser', 'superace', 'solg']) {
+      const b = BOSSES.spawnType(k); if (!b) continue;
+      const w = __t.sim(240, { audio: true, until: () => !b.alive }); v.push(...w.violations);
+      let seen = 0, n = 0; __t.sim(STRUCK_T, { audio: true, until: () => { n++; if (CAM.onScreen(b.pos, 0.03)) seen++; return false; } });
+      out.push({ k, down: b.downed, seen: +(seen / n).toFixed(2) });
+      __t.sim(10, { audio: true });
+    }
+    return { v: v.slice(0, 10), out };
+  });
+  expect(r.v).toEqual([]);
+  for (const o of r.out) { expect(o.down, o.k).toBe(true); expect(o.seen, `${o.k} goes down in frame`).toBeGreaterThan(0.8); }
+});

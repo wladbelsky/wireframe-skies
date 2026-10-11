@@ -30,7 +30,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
 | `js/bosses.js` | boss types (added to `ENEMY_TYPES`) + `drone`, `BOSSES` (timer `t`, `wave` / `spawnType` / escort, `arm` (a boss's own state, from `EnemyForce.spawn`), `wish` for orbit / SOLG flight, specials on the beat, `shells` / `beams` pools, Excalibur's blade) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
-| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, backs off on screens narrower than `FIT_ASPECT` (phones in portrait), and while the hero runs out away from the lagging focus (`back`, `HERO_FIT` / `HERO_BACK`), targets only move the slow `aux` point, `right` / `upv` screen axes) |
+| `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, backs off on screens narrower than `FIT_ASPECT` (phones in portrait), and while the hero runs out away from the lagging focus (`back`, `HERO_FIT` / `HERO_BACK`), targets only move the slow `aux` point; a boss within `BOSS_R` pulls the focus toward it (`BOSS_W`, eased by `bossK`, the hero preferably a plane on it) and, about to go down / burning, onto it (`KILL_W`), the camera backs off to keep it in frame; `right` / `upv` screen axes) |
 | `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
 | `js/properties.js` | **generated** from `project.json` — do not edit by hand |
 | `js/settings.js` | browser-only settings drawer, demo beat, audio-file player (returns early inside WE) |
@@ -39,7 +39,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=44`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=45`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -156,7 +156,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   beats while `AUD.fighting` (`e.sp` cooldown) and always miss: `shells` (ring pool, air / ground bursts), `beams`
   (follow their source, end with it), missile salvos (`MISSILES`, `SQUAD.threat`), drones (`drone` type, Arsenal Bird).
   Guns hurt a boss on 15 % of the bursts (35 % otherwise), so the missiles do most of the 10 hits. `boss.spec.js`
-  fights every kind (the flight brings it down, its special fires).
+  fights every kind (the flight brings it down, its special fires, it goes down in frame — also in a full fight).
 - Allies (`CFG.allies`): a group every 35–80 s in peace and in combat (fleet at sea, column on land, a fighter pair /
   four with a shared callsign, or an AWACS), at most `ALLY_CAP` alive. In a fight allied ships / SAMs / fighters fire
   on mid / high beats (rate-limited); their missiles always hit. Allies are never targeted and never struck.
