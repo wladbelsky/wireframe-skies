@@ -3,7 +3,8 @@
    Waves spawn ahead of the flight only while AUD.fighting: ground groups where the map ahead is land, ships where it
    is sea, air groups anywhere. After a fight they retreat (see SQUAD.startMopUp). Hostile missiles always lose lock.
    An air group is one aircraft type under one name; ACE_P of fighter / attack groups are aces: a squadron callsign
-   (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots. */
+   (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots.
+   Every CFG.bossEvery minutes of combat a boss comes instead of a wave (js/bosses.js adds the boss types). */
 const ENEMY_TYPES = {
   fighter:   { cls: 'air', glyph: 'arrow', scale: 2.0, hp: 1, speed: 23, turn: 0.55, names: ['MIG-29A', 'SU-30', 'SU-27', 'J-10C'], w: 4, fires: 'missile', alt: [50, 150], max: 10 },
   bomber:    { cls: 'air', glyph: 'heavy', scale: 1.7, hp: 3, speed: 15, turn: 0.18, names: ['TU-22M', 'H-6K'], w: 1, alt: [70, 130], max: 4 },
@@ -60,12 +61,15 @@ class EnemyForce extends Force {
     if (fighting && !this.wasFighting) { this.waveT = rand(4, 6); this.near = true; }   // first the flight spreads out, then the opening wave, a bit nearer
     this.wasFighting = fighting;
     if (fighting && CFG.density > 0) {
-      this.waveT -= dt;
+      this.waveT -= dt; if (CFG.bossEvery > 0) BOSSES.t += dt;   // boss time: minutes of combat with music
+      // a boss is due: it comes instead of the next wave (never as the opening one)
+      if (this.waveT <= 0 && !this.near && BOSSES.due() && BOSSES.wave()) this.waveT = rand(10, 14) / Math.max(0.3, CFG.density / 100);
       const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4)));
       // the next wave when this one is under way (not while most of it hasn't been touched yet)
       if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
+    BOSSES.update(dt);
     super.update(dt);   // after a fight SQUAD.startMopUp / endMopUp send the enemies into retreat
   }
   /* enemies nobody has gone for yet; aircraft that flew on past the fight (away from it, 300+ out) don't hold the next wave up */
@@ -83,6 +87,7 @@ class EnemyForce extends Force {
     e.modeT -= dt;
     const tgt = this.nearestFriend(e.pos);
     if (e.state === 'retreat') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; }   // turn away and climb
+    else if (e.ty.ai === 'orbit' || e.ty.ai === 'solg') BOSSES.wish(e, _q);   // superweapons (js/bosses.js); a superace flies as a fighter
     else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - pl.agl) * 0.05; }
     else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - pl.agl) * 0.01; }
     else {   // fighters: merge, then dogfight with jinks
@@ -97,6 +102,7 @@ class EnemyForce extends Force {
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
   onBeat(band) {
     if (!CFG.enemyFire) return;
+    BOSSES.onBeat(band);   // the bosses' show-off attacks
     if (band === 'mid' && Math.random() < 0.5) {   // AA guns and ships' AA: streams that miss, from a few of them (random start)
       const L = this.list, k0 = randi(0, L.length - 1);
       for (let k = 0, shots = 0; k < L.length && shots < AA_MAX; k++) {

@@ -12,7 +12,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   (no modules). three.js **r149** is vendored as `js/three.min.js` — never edit it. Needs WebGL2 (the ground
   shader uses `uint` arithmetic).
 - `index.html` loads scripts in dependency order (later files use globals of earlier ones):
-  `core → noise → terrain → flight → models → effects → audio → squad → forces → enemies → allies → camera → main → properties → settings`,
+  `core → noise → terrain → flight → models → effects → audio → squad → forces → enemies → bosses → allies → camera → main → properties → settings`,
   then an inline script registers the WE audio listener (or starts the browser demo beat).
   `main.js` calls `init()` at its end, so anything `init()` needs must be defined before `main.js`.
 
@@ -28,6 +28,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/squad.js` | `ROUTE` (the virtual lead point), `FORMATIONS`, `SQUAD` (peace formation flying, combat AI in two elements around the battle area `anchor`, shooting, evasion, flares, rejoin) |
 | `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
 | `js/enemies.js` | `ENEMY_TYPES`, `ENEMIES` (an `EnemyForce`: waves, air AI, hostile fire) |
+| `js/bosses.js` | boss types (added to `ENEMY_TYPES`) + `drone`, `BOSSES` (timer `t`, `wave` / `spawnType` / escort, `wish` for orbit / SOLG flight, specials on the beat, `shells` / `beams` pools, Excalibur's blade) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
 | `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, backs off on screens narrower than `FIT_ASPECT` (phones in portrait), and while the hero runs out away from the lagging focus (`back`, `HERO_FIT` / `HERO_BACK`), targets only move the slow `aux` point, `right` / `upv` screen axes) |
 | `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
@@ -38,7 +39,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=42`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=43`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -147,6 +148,15 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
   An air group is one type under one name; `ACE_P` of fighter / attack groups are aces (`e.ace`): an `ACE_CALLSIGNS`
   callsign + number, +1 hp, sharper turns, more jinks, shorter missile cooldown.
+- **Bosses** (`js/bosses.js`): `BOSSES.t` counts combat time (`AUD.fighting`, density > 0); after `CFG.bossEvery` min,
+  with no boss alive, the next wave (never the opening one) is a boss of `BOSS_HP` (10) — ground ones on land, sea ones
+  at sea, air anywhere, not the same type twice in a row — plus its `escort`, within the cap. Boss types are ordinary
+  `ENEMY_TYPES` entries (`boss: true`, `max: 1`, `ai`: `orbit` circles `ROUTE.pos` at `R`, `solg` sinks in passes,
+  `ace` = the fighter AI with `e.ace`, drawn as a normal fighter; `special`; `pole` = pole height). Specials fire on
+  beats while `AUD.fighting` (`e.sp` cooldown) and always miss: `shells` (ring pool, air / ground bursts), `beams`
+  (follow their source, end with it), missile salvos (`MISSILES`, `SQUAD.threat`), drones (`drone` type, Arsenal Bird).
+  Guns hurt a boss on 15 % of the bursts (35 % otherwise), so the missiles do most of the 10 hits. `boss.spec.js`
+  fights every kind (the flight brings it down, its special fires).
 - Allies (`CFG.allies`): a group every 35–80 s in peace and in combat (fleet at sea, column on land, a fighter pair /
   four with a shared callsign, or an AWACS), at most `ALLY_CAP` alive. In a fight allied ships / SAMs / fighters fire
   on mid / high beats (rate-limited); their missiles always hit. Allies are never targeted and never struck.
@@ -186,7 +196,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.
   - `preview.jpg`: `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
     (`$env:PREVIEW_T` = seconds of combat before the shot). `$env:PREVIEW = 'shots'` renders a few scenarios
-    (splash, peace with allies, combat, close-ups, a contact appearing, mop-up, retreat) into `test-results/shots/` —
+    (splash, peace with allies, combat, close-ups, a contact appearing, mop-up, retreat, a boss) into `test-results/shots/` —
     the quickest way to look at a visual change.
 - Console checks by hand (browser): stop the loop with `frame = () => {}`, then drive it with `step(0.05)` and `draw()`;
   load `tests/support/inpage.js` with `eval(await (await fetch('/tests/support/inpage.js')).text()); __t.setup()`

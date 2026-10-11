@@ -79,6 +79,8 @@
     if (ALLIES.alive > ALLY_CAP) v.push(`too many allies: ${ALLIES.alive}`);
     if (ALLIES.list.some(e => e.state !== 'live' && e.state !== 'fade')) v.push('an ally was struck');
     for (const m of MISSILES.pool) if (m.on && (!fin(m.p) || far(m.p))) v.push('missile out of bounds');
+    for (const b of BOSSES.shells) if (b.on && (!fin(b.p) || far(b.p))) v.push('boss shell out of bounds');
+    if (ENEMIES.list.filter(e => e.alive && e.ty.boss).length > 1) v.push('more than one boss alive');
     if (far(ROUTE.pos) || far(CAM.focus)) v.push('route / camera far from the origin');
     if (!Number.isFinite(camera.position.x + camera.position.y + camera.position.z)) v.push('camera non-finite');
     return v;

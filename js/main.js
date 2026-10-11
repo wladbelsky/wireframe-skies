@@ -22,6 +22,7 @@ window.wallpaperPropertyListener = {
     if (has('audiosensitivity')) CFG.sens = p.audiosensitivity.value;
     if (has('enemydensity')) CFG.density = p.enemydensity.value;
     if (has('enemiesfire')) CFG.enemyFire = p.enemiesfire.value;
+    if (has('bossevery')) CFG.bossEvery = p.bossevery.value;
     if (has('maneuvers')) CFG.maneuvers = p.maneuvers.value;
     if (has('friendcolor')) CFG.colors.friend = rgbFromWE(p.friendcolor.value);
     if (has('enemycolor')) CFG.colors.enemy = rgbFromWE(p.enemycolor.value);
@@ -55,10 +56,10 @@ function init() {
   scene = new THREE.Scene(); scene.background = PAL.bg;
   camera = new THREE.PerspectiveCamera(40, 16 / 9, 1, 6000);
   TERRAIN.build(scene);
-  LINES.build(scene); GLOW.build(scene); BURSTS.build(); MISSILES.build(); TRACERS.build();
+  LINES.build(scene); GLOW.build(scene); BURSTS.build(); MISSILES.build(); TRACERS.build(); BOSSES.build();
   ROUTE.heading = ROUTE.tgtHeading = rand(0, TAU); ROUTE.update(0);
   SQUAD.build(scene);
-  for (const sys of [ROUTE, SQUAD, ENEMIES, ALLIES, MISSILES, TRACERS, GLOW, BURSTS, CAM]) WORLD.onShift((dx, dz) => sys.shift(dx, dz));
+  for (const sys of [ROUTE, SQUAD, ENEMIES, ALLIES, BOSSES, MISSILES, TRACERS, GLOW, BURSTS, CAM]) WORLD.onShift((dx, dz) => sys.shift(dx, dz));
   CAM.nextShot();
   ready = true;
   window.addEventListener('resize', resize);
@@ -91,7 +92,7 @@ function step(dt) {
 /* ---- per-frame visuals (after the steps): dynamic lines, glow points, ground ---- */
 function draw() {
   LINES.begin(); GLOW.begin();
-  SQUAD.draw(); ALLIES.draw(); ENEMIES.draw(); MISSILES.draw();   // the flight first: if LINES ever fills up, it is never what drops out (additive, so order doesn't show)
+  SQUAD.draw(); ALLIES.draw(); ENEMIES.draw(); BOSSES.draw(); MISSILES.draw();   // the flight first: if LINES ever fills up, it is never what drops out (additive, so order doesn't show)
   TRACERS.draw(); BURSTS.draw(); GLOW.drawParts();
   const c = renderer.domElement;
   LINES.end(c.width, c.height, renderer.getPixelRatio()); GLOW.end(camera, c.height);

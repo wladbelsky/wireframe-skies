@@ -1,7 +1,7 @@
 // Not tests: render images.
 //   PREVIEW=1      → preview.jpg (the Workshop / project.json preview) from a deterministic combat moment
 //   PREVIEW=shots  → test-results/shots/*.png: a few scenarios for looking at changes (splash, peace with allies, combat,
-//                    close-ups, a new contact appearing, mop-up, retreat)
+//                    close-ups, a new contact appearing, mop-up, retreat, a boss)
 // PREVIEW_T = seconds of combat before the preview shot. See CLAUDE.md "Running & testing".
 const { test } = require('./support/harness');
 const path = require('path');
@@ -64,6 +64,11 @@ test('render scenario shots', async ({ wp, page }) => {
     __t.sim(MOPUP_T + 1, { audio: false, draw: true, until: () => SQUAD.mopT <= 0 }); __t.sim(1.6, { audio: false, draw: true });
     const e = ENEMIES.list.find(x => x.state === 'retreat' && x.ground) || ENEMIES.list.find(x => x.state === 'retreat');
     if (e) { CAM.focus.copy(e.pos).setY(10); CAM.cur.dist = 110; CAM.place(); }
+  });
+  // a boss (Arsenal Bird) in the fight
+  await shot('13-boss', () => {
+    __t.forceFight(); const b = BOSSES.spawnType('arsenal'); __t.sim(14, { audio: true, draw: true });
+    CAM.focus.copy(b.pos).lerp(SQUAD.planes[0].pos, 0.4); CAM.cur.dist = 220; CAM.cur.el = 22; CAM.place();
   });
   // a phone in portrait: the camera backs off so the flight stays in frame
   await page.setViewportSize({ width: 390, height: 844 });
