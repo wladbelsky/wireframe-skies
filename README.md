@@ -15,9 +15,11 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
   looping. The landscape changes as it flies: open sea, coasts, mountains, cities.
 - **Allies** pass by: fleets (AEGIS, DESTROYER, now and then a CARRIER) at sea, armour columns (TANK, APC, SAM, HQ)
   on land, fighter pairs with their own callsigns, an AWACS high above. In a fight they fire at the enemy too.
-- **With music** enemies appear ahead — fighters, bombers, attack jets and helicopters in the air, SAM sites, AA guns,
-  tanks and radars on land, frigates and destroyers at sea. The flight breaks, picks targets, fires missiles on the
-  beat (guns on the snare), then repositions with loops, Immelmanns, split-S, barrel rolls and break turns.
+- **With music** enemies appear ahead — aircraft out of the Ace Combat series (MiG-29A, Su-35S, F-16C, F-14D,
+  Typhoon… fighters, Tu-95 / B-52H bombers, A-10C / F-117A attackers, C-130 / Il-76 transports, Mi-24 / AH-64D
+  helicopters), SAM sites, AA guns, tanks and radars on land, frigates, destroyers and now and then a carrier at sea.
+  The flight breaks, picks targets, fires missiles on the beat (guns on the snare), then repositions with loops,
+  Immelmanns, split-S, barrel rolls and break turns.
   When the music starts the flight first opens into a combat spread; it breaks only when the first contacts show on
   radar, toward them.
   It fights as two pairs: a wingman backs its lead up (the same tough target, or one next to it) and covers its six

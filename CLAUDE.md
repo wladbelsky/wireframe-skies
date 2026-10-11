@@ -39,7 +39,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=45`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=46`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -146,7 +146,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Ground / sea units: a flat marker, a pole of `POLE_H` up to the name, a dot near the bottom (the replay look).
   Aircraft: the glyph in its attitude, an altitude line to a ground cross, the name beside it.
 - Enemy waves only while `AUD.fighting`, ahead of `ROUTE`: ground groups only on land, ships only at sea (tests check it).
-  An air group is one type under one name; `ACE_P` of fighter / attack groups are aces (`e.ace`): an `ACE_CALLSIGNS`
+  Transports (`transport`, 2 hp, unarmed) fly like bombers (course and height); a sea wave is led by a `carrier` (4 hp,
+  unarmed, `w: 0`: only there) one time in four. An air group is one type under one name; `ACE_P` of fighter / attack groups are aces (`e.ace`): an `ACE_CALLSIGNS`
   callsign + number, +1 hp, sharper turns, more jinks, shorter missile cooldown.
 - **Bosses** (`js/bosses.js`): `BOSSES.t` counts combat time (`AUD.fighting`, density > 0); after `CFG.bossEvery` min,
   with no boss alive, the next wave (never the opening one; paced like any wave) is a boss of `BOSS_HP` (10) — ground ones on land, sea ones
