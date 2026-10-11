@@ -64,6 +64,19 @@ test('ten hits bring a boss down, nine do not', async ({ wp }) => {
   expect(r.kills).toBe(1);
 });
 
+test('the Arsenal Bird launches drones into the fight when there is room for them', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    __t.forceFight(); const v = __t.sim(2, { audio: true }).violations;
+    ENEMIES.waveT = 1e9;   // no regular waves (the drone runs below need room under the cap)
+    const b = BOSSES.spawnType('arsenal');
+    const w = __t.sim(60, { audio: true, until: () => ENEMIES.list.some(e => e.type === 'drone') || !b.alive }); v.push(...w.violations);
+    return { v: v.slice(0, 10), drones: ENEMIES.list.filter(e => e.type === 'drone').length };
+  });
+  expect(r.v).toEqual([]);
+  expect(r.drones, 'MQ-101s out of the bay').toBeGreaterThan(0);
+});
+
 /* each kind in turn (no regular waves): it shows up, fires its special (and misses), the flight brings it down */
 for (const [name, kinds] of [['air', ['arsenal', 'cruiser', 'solg', 'superace']], ['ground', ['stonehenge', 'excalibur', 'landship']], ['sea', ['subcarrier', 'alicorn']]]) {
   test(`the flight brings the ${name} bosses down: ${kinds.join(', ')}`, async ({ wp }) => {

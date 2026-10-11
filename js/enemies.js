@@ -26,6 +26,7 @@ class EnemyForce extends Force {
   constructor() { super(ENEMY_TYPES, 'enemy'); this.waveT = 0; this.fireT = 3; this.missiles = 0; this.wasFighting = false; this.near = false; }   // near: the next wave opens a fight (spawns nearer)
   get cap() { return Math.round(clamp(16 * CFG.density / 100, 0, 36)); }
   onGone(e) { for (const p of SQUAD.planes) if (p.target === e) SQUAD.release(p); }
+  spawn(type, pos, heading, name) { const s = super.spawn(type, pos, heading, name); if (s && s.ty.boss) BOSSES.arm(s); return s; }   // a boss: its own state (js/bosses.js)
 
   /* ---- waves ---- */
   wave() {
@@ -62,11 +63,13 @@ class EnemyForce extends Force {
     this.wasFighting = fighting;
     if (fighting && CFG.density > 0) {
       this.waveT -= dt; if (CFG.bossEvery > 0) BOSSES.t += dt;   // boss time: minutes of combat with music
-      // a boss is due: it comes instead of the next wave (never as the opening one)
-      if (this.waveT <= 0 && !this.near && BOSSES.due() && BOSSES.wave()) this.waveT = rand(10, 14) / Math.max(0.3, CFG.density / 100);
-      const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4)));
-      // the next wave when this one is under way (not while most of it hasn't been touched yet)
-      if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
+      const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4))), k = Math.max(0.3, CFG.density / 100);
+      // the next wave when this one is under way (not while most of it hasn't been touched yet) — a boss instead when
+      // one is due (never as the opening wave); paced like any wave
+      if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) {
+        if (!this.near && BOSSES.due() && BOSSES.wave()) this.waveT = rand(10, 14) / k;
+        else { this.wave(); this.waveT = rand(5, 9) / k; }
+      }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
     BOSSES.update(dt);

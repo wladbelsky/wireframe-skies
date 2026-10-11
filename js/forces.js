@@ -69,12 +69,15 @@ class Force {
 
   /* ---- placement of groups (ground units only on land, ships only at sea, a minimum spacing) ---- */
   freeSpot(x, z, d) { return !this.list.some(e => e.ground && Math.hypot(e.pos.x - x, e.pos.z - z) < d); }
+  /* the right terrain for a class at (x, z): land for ground units, sea with open water 40 ahead (heading h) for ships */
+  spotOk(cls, x, z, h) { return cls === 'sea' ? TERRAIN.isSea(x, z) && TERRAIN.land(x + Math.sin(h) * 40, z + Math.cos(h) * 40) <= -0.03 : TERRAIN.isLand(x, z); }
+  pickKind(kinds) { return wpick(kinds.map(k => ({ k, w: this.types[k].w }))).k; }   // one of kinds by group weight
   groundGroup(c, n, kinds, spread, h) {
     h = h == null ? rand(0, TAU) : h; let made = 0;
     for (let tries = 0; made < n && tries < n * 8; tries++) {
       _fq.set(c.x + rand(-spread, spread), 0, c.z + rand(-spread, spread));
-      if (!TERRAIN.isLand(_fq.x, _fq.z) || !this.freeSpot(_fq.x, _fq.z, 12)) continue;
-      if (this.spawn(wpick(kinds.map(k => ({ k, w: this.types[k].w }))).k, _fq, h + rand(-0.4, 0.4))) made++;
+      if (!this.spotOk('ground', _fq.x, _fq.z, h) || !this.freeSpot(_fq.x, _fq.z, 12)) continue;
+      if (this.spawn(this.pickKind(kinds), _fq, h + rand(-0.4, 0.4))) made++;
     }
     return made;
   }
@@ -82,8 +85,8 @@ class Force {
     h = h == null ? rand(0, TAU) : h; let made = 0;
     for (let tries = 0; made < n && tries < n * 8; tries++) {
       _fq.set(c.x + rand(-spread, spread), 0, c.z + rand(-spread, spread));
-      if (!TERRAIN.isSea(_fq.x, _fq.z) || TERRAIN.land(_fq.x + Math.sin(h) * 40, _fq.z + Math.cos(h) * 40) > -0.03 || !this.freeSpot(_fq.x, _fq.z, 26)) continue;
-      if (this.spawn(wpick(kinds.map(k => ({ k, w: this.types[k].w }))).k, _fq, h)) made++;
+      if (!this.spotOk('sea', _fq.x, _fq.z, h) || !this.freeSpot(_fq.x, _fq.z, 26)) continue;
+      if (this.spawn(this.pickKind(kinds), _fq, h)) made++;
     }
     return made;
   }
@@ -134,6 +137,7 @@ class Force {
         this.appear(e, c); shown = this.typed(e);
         a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
       } else if (e.state === 'live' && !e.full) { setLabel(e.label, e.name, this.css, false); e.full = true; }   // the whole name, once
+      e.drawA = a; e.drawGrow = grow;   // for parts drawn elsewhere (Excalibur's blade, js/bosses.js)
       if (e.ground) {
         const y = e.pos.y, ph = e.ty.pole || POLE_H;
         drawMarker(g, e.pos.x, y, e.pos.z, e.heading, e.ty.scale, c, a, 2);

@@ -34,7 +34,8 @@ Object.assign(ENEMY_TYPES, {
                 escort: { kinds: ['frigate', 'destroyer'], n: [1, 2] } }
 });
 const BOSS_KINDS = Object.keys(ENEMY_TYPES).filter(k => ENEMY_TYPES[k].boss);
-const _bp = new V3(), _bq = new V3(), _bd = new V3(), _br = new V3(), _bf = new V3(), _bo = new V3();
+const _bp = new V3(), _bq = new V3(), _bd = new V3(), _br = new V3(), _bf = new V3(), _bo = new V3(), _bm = new V3();
+const bossR = ty => ty.scale * 2.2 + 10;   // a ground / sea boss's footprint: other units keep this far from its centre
 /* a point given in a boss's glyph coordinates (x side, y up, z forward; × scale) in the world */
 function bossPoint(e, x, y, z, out) {
   const s = e.ty.scale;
@@ -44,18 +45,16 @@ function bossPoint(e, x, y, z, out) {
 }
 
 /* Excalibur's tower: a broad blade standing point down in its base, the crossguard, the grip, the radome as the pommel */
-const _bx = new V3(), _bz = new V3();
+const _bx = new V3();
 function bladeDraw(p, h, H, s, c, a, lit) {
-  const y = p.y + 0.15, w = 0.5 * s, d = 0.08 * s, top = H * 0.8;
-  _bx.set(Math.cos(h), 0, -Math.sin(h)); _bz.set(Math.sin(h), 0, Math.cos(h));
-  const P = (x, yy, z) => [p.x + _bx.x * x + _bz.x * z, y + yy, p.z + _bx.z * x + _bz.z * z];
-  const L = (q0, q1, k) => LINES.add(q0[0], q0[1], q0[2], q1[0], q1[1], q1[2], c, a * k, a * k, 1.8);
-  for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) L(P(x * w * 0.6, 0, z * d), P(x * w, top, z * d), 0.8);   // the blade, broader up to the guard
-  L(P(-w, top, -d), P(w, top, -d), 0.8); L(P(-w, top, d), P(w, top, d), 0.8);
-  L(P(-w * 1.9, top, 0), P(w * 1.9, top, 0), 1);   // the crossguard
-  L(P(-0.12 * s, top, 0), P(-0.12 * s, H, 0), 0.9); L(P(0.12 * s, top, 0), P(0.12 * s, H, 0), 0.9);   // the grip
-  const q = P(0, H + 0.25 * s, 0); _bx.set(q[0], q[1], q[2]);
-  LINES.circle(_bx, 0.25 * s, c, a, false, 1.6, 12);   // the radome
+  const y = p.y + 0.15, w = 0.5 * s, d = 0.08 * s, top = H * 0.8, ch = Math.cos(h), sh = Math.sin(h);
+  // a line between two points of the tower (x side, height, z forward; turned to h), alpha × k
+  const L = (x0, y0, z0, x1, y1, z1, k) => LINES.add(p.x + x0 * ch + z0 * sh, y + y0, p.z - x0 * sh + z0 * ch, p.x + x1 * ch + z1 * sh, y + y1, p.z - x1 * sh + z1 * ch, c, a * k, a * k, 1.8);
+  for (let x = -1; x <= 1; x += 2) for (let z = -1; z <= 1; z += 2) L(x * w * 0.6, 0, z * d, x * w, top, z * d, 0.8);   // the blade, broader up to the guard
+  L(-w, top, -d, w, top, -d, 0.8); L(-w, top, d, w, top, d, 0.8);
+  L(-w * 1.9, top, 0, w * 1.9, top, 0, 1);   // the crossguard
+  L(-0.12 * s, top, 0, -0.12 * s, H, 0, 0.9); L(0.12 * s, top, 0, 0.12 * s, H, 0, 0.9);   // the grip
+  LINES.circle(_bx.set(p.x, y + H + 0.25 * s, p.z), 0.25 * s, c, a, false, 1.6, 12);   // the radome
   if (lit) GLOW.dot(_bx, 2, c, 0.9 * a);
 }
 
@@ -88,18 +87,19 @@ const BOSSES = {
     const ty = ENEMY_TYPES[type], E = ENEMIES;
     if (!at) at = _bp.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, 500);
     const h = Math.atan2(ROUTE.pos.x - at.x, ROUTE.pos.z - at.z) + rand(-0.5, 0.5);   // toward the flight, roughly
-    let b = null;
-    if (ty.cls === 'air') { _bq.copy(at); _bq.y = Math.min(TERRAIN.height(at.x, at.z) + rand(ty.alt[0], ty.alt[1]), CEIL - 40); b = E.spawn(type, _bq, h); }
-    else for (let i = 0; i < 16 && !b; i++) {   // on the right terrain: at the point itself, else somewhere near it
+    if (ty.cls === 'air') { _bq.copy(at); _bq.y = Math.min(TERRAIN.height(at.x, at.z) + rand(ty.alt[0], ty.alt[1]), CEIL - 40); return E.spawn(type, _bq, h); }
+    for (let i = 0; i < 16; i++) {   // on the right terrain, clear of other units: at the point itself, else somewhere near it
       const x = at.x + (i ? rand(-60, 60) : 0), z = at.z + (i ? rand(-60, 60) : 0);
-      if (ty.cls === 'sea' ? !TERRAIN.isSea(x, z) || TERRAIN.land(x + Math.sin(h) * 40, z + Math.cos(h) * 40) > -0.03 : !TERRAIN.isLand(x, z)) continue;
-      if (E.freeSpot(x, z, 20)) b = E.spawn(type, _bq.set(x, 0, z), h);
+      if (E.spotOk(ty.cls, x, z, h) && E.freeSpot(x, z, bossR(ty))) return E.spawn(type, _bq.set(x, 0, z), h);
     }
-    if (!b) return null;
-    b.sp = ty.ai === 'ace' ? rand(1.5, 3) : rand(4, 7); b.osense = Math.random() < 0.5 ? -1 : 1;
+    return null;
+  },
+  /* a new boss (from EnemyForce.spawn, however it was spawned): its special's cooldown, the way round its orbit, its
+     cruise height, the ace's fighter AI */
+  arm(b) {
+    b.sp = b.ty.ai === 'ace' ? rand(1.5, 3) : rand(4, 7); b.osense = Math.random() < 0.5 ? -1 : 1;
     if (b.plane) b.balt = b.plane.agl;
-    if (ty.ai === 'ace') { b.ace = true; b.mode = 'merge'; }
-    return b;
+    if (b.ty.ai === 'ace') { b.ace = true; b.mode = 'merge'; }
   },
   escort(b, room) {
     const es = b.ty.escort; if (!es || room < 1) return 0;
@@ -122,12 +122,11 @@ const BOSSES = {
   },
   /* ground / sea escorts around a boss (clear of its glyph) */
   around(b, n, kinds) {
-    const sea = b.ty.cls === 'sea', r0 = b.ty.scale * 2.2 + 10; let made = 0;
+    const E = ENEMIES, sea = b.ty.cls === 'sea', r0 = bossR(b.ty); let made = 0;
     for (let tries = 0; made < n && tries < n * 10; tries++) {
       const a = rand(0, TAU), r = rand(r0, r0 + 50), x = b.pos.x + Math.sin(a) * r, z = b.pos.z + Math.cos(a) * r;
-      if (sea ? !TERRAIN.isSea(x, z) || TERRAIN.land(x + Math.sin(b.heading) * 40, z + Math.cos(b.heading) * 40) > -0.03 : !TERRAIN.isLand(x, z)) continue;
-      if (!ENEMIES.freeSpot(x, z, sea ? 26 : 12) || Math.hypot(x - b.pos.x, z - b.pos.z) < r0) continue;
-      if (ENEMIES.spawn(wpick(kinds.map(k => ({ k, w: ENEMY_TYPES[k].w }))).k, _bo.set(x, 0, z), b.heading + (sea ? 0 : rand(-0.4, 0.4)))) made++;
+      if (!E.spotOk(b.ty.cls, x, z, b.heading) || !E.freeSpot(x, z, sea ? 26 : 12)) continue;
+      if (E.spawn(E.pickKind(kinds), _bo.set(x, 0, z), b.heading + (sea ? 0 : rand(-0.4, 0.4)))) made++;
     }
     return made;
   },
@@ -159,8 +158,8 @@ const BOSSES = {
     switch (ty.special) {
       case 'drones': {   // Arsenal Bird: a pair of MQ-101 out of the bay (a salvo when there's no room for more)
         const room = ENEMIES.cap - ENEMIES.alive;
-        if (room < 1) return this.salvo(e, 2);
-        bossPoint(e, 0, -0.4, 0, _bq); this.air('drone', Math.min(2, room), _bq, e.plane.dir, null);
+        bossPoint(e, 0, -0.4, 0, _bq);
+        if (room < 1 || !this.air('drone', Math.min(2, room), _bq, e.plane.dir, null)) return this.salvo(e, 2);   // no room / every drone up already
         GLOW.spawn(_bq, { c: PAL.enemy, s: 5, life: 0.4 });
         return true;
       }
@@ -172,7 +171,7 @@ const BOSSES = {
       case 'laser': {   // the ace: only with its nose on a plane, a beam just past it
         _bd.subVectors(f.pos, e.pos); const d = _bd.length();
         if (d > 300 || e.plane.dir.dot(_bd.normalize()) < 0.7) return false;
-        this.miss(f, rand(9, 15), _bq); bossPoint(e, 0, 0, 2.3, _bp);
+        bossPoint(e, 0, 0, 2.3, _bp); this.miss(f, rand(9, 15), _bq, _bp);
         return this.beam(e, false, _bd.subVectors(_bq, _bp).normalize(), _bd, 0.8);
       }
       case 'beam': {   // Excalibur: from the top of the tower, a sweep just over the flight
@@ -188,15 +187,15 @@ const BOSSES = {
           const a = Math.round(Math.atan2(_bd.x * sh + _bd.z * ch, _bd.x * ch - _bd.z * sh) / (TAU / 8)) * (TAU / 8);
           bossPoint(e, Math.cos(a) * 1.9, 0.2, Math.sin(a) * 1.9, _bp);
         } else bossPoint(e, 0, 0.3, 4.0, _bp);
-        this.miss(f, rand(22, 40), _bq); this.shell(_bp, _bq, 110, 25, 'rail', 3.5, false);
+        this.miss(f, rand(22, 40), _bq, _bp); this.shell(_bp, _bq, 110, 25, 'rail', 3.5, false);
         GLOW.spawn(_bp, { c: PAL.enemy, s: 5, life: 0.35 });
         return true;
       }
       case 'salvo':   // Land Battleship: all three turrets
-        for (const z of [1.3, 0.4, -1.5]) { bossPoint(e, 0, 0.3, z, _bp); this.miss(f, rand(22, 45), _bq); this.shell(_bp, _bq, rand(95, 115), 25, 'rail', 3, false); GLOW.spawn(_bp, { c: PAL.enemy, s: 4, life: 0.3 }); }
+        for (const z of [1.3, 0.4, -1.5]) { bossPoint(e, 0, 0.3, z, _bp); this.miss(f, rand(22, 45), _bq, _bp); this.shell(_bp, _bq, rand(95, 115), 25, 'rail', 3, false); GLOW.spawn(_bp, { c: PAL.enemy, s: 4, life: 0.3 }); }
         return true;
       case 'burst': {   // Scinfaxi: burst missiles out of the deck, a big airburst near the flight
-        for (let i = 0; i < 3; i++) { bossPoint(e, 0, 0.3, 1.6 - i * 0.6, _bp); this.miss(f, rand(28, 45), _bq); this.shell(_bp, _bq, 45, 0, 'msl', 5, false); }
+        for (let i = 0; i < 3; i++) { bossPoint(e, 0, 0.3, 1.6 - i * 0.6, _bp); this.miss(f, rand(28, 45), _bq, _bp); this.shell(_bp, _bq, 45, 0, 'msl', 5, false); }
         SQUAD.threat(f); ENEMIES.missiles++;
         return true;
       }
@@ -214,8 +213,13 @@ const BOSSES = {
     }
     return k > 0;
   },
-  /* a point near plane f, d away from it (mostly beside / above, never on it) */
-  miss(f, d, out) { _bo.set(rand(-1, 1), rand(0.1, 0.8), rand(-1, 1)).normalize(); return out.copy(f.pos).addScaledVector(_bo, d); },
+  /* a point near plane f, d away from it (mostly beside / above, never on it); from: the shooter — the offset is then
+     square to the line of fire, so a beam / shell from there passes the plane about d off, never through it */
+  miss(f, d, out, from) {
+    _bo.set(rand(-1, 1), rand(0.1, 0.8), rand(-1, 1));
+    if (from) { _bm.subVectors(f.pos, from).normalize(); _bo.addScaledVector(_bm, -_bo.dot(_bm)); if (_bo.lengthSq() < 1e-3) _bo.set(_bm.z, 0, -_bm.x); if (_bo.lengthSq() < 1e-3) _bo.set(1, 0, 0); }
+    return out.copy(f.pos).addScaledVector(_bo.normalize(), d);
+  },
   /* a shell from p to q at speed sp under gravity g (an arc that gets there): a burst there, or on the ground */
   shell(p, q, sp, g, look, r, ground) {
     const s = this.shells[this.si]; this.si = (this.si + 1) % SHELL_N;
@@ -246,12 +250,8 @@ const BOSSES = {
   /* ---- per frame: Excalibur's tower, shells, beams ---- */
   draw() {
     const c = PAL.enemy;
-    for (const e of ENEMIES.list) {   // Excalibur's blade
-      if (e.ty.special !== 'beam') continue;
-      const a = e.state === 'fade' ? Math.max(0, 1 - e.t / FADE_T) : e.state === 'retreat' ? clamp((e.retT - e.t) / RETREAT_FLICK, 0, 1) : 1;
-      const grow = e.state === 'live' && e.t < APPEAR_T ? easeOut(Math.min(1, e.t / (APPEAR_T * 0.5))) : 1;
-      bladeDraw(e.pos, e.heading, e.ty.pole * grow, e.ty.scale, c, a, e.alive);
-    }
+    // Excalibur's blade: alpha and height as its pole (appearing, retreating, fading — set by ENEMIES.draw, just before)
+    for (const e of ENEMIES.list) if (e.ty.special === 'beam') bladeDraw(e.pos, e.heading, e.ty.pole * e.drawGrow, e.ty.scale, c, e.drawA, e.alive);
     for (const s of this.shells) {
       if (!s.on) continue;
       const k = s.look === 'msl' ? 0.3 : 0.06;
