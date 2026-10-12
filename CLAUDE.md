@@ -121,7 +121,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   down further when it is not ahead, so enemies aren't left behind (`FAR_BEHIND`) half-dead. Waves are paced:
   no new wave while `UNTOUCHED_MAX` (× density over 100 %) enemies nobody has gone for are alive (`ENEMIES.untouched`;
   aircraft flying away from the battle area, 300+ out, don't count).
-  `steering.spec.js` measures it (spread, distance within pairs, how long a damaged enemy waits).
+  `steering.spec.js` measures it (spread, distance within pairs, how long a damaged enemy waits while a plane is free
+  to go for it — the whole flight on a tough target is not neglect).
 - **No orbiting:** a target inside the turn circle can't be aimed at — after `NOAIM_T` s near it without a firing
   solution the plane extends (`p.extendT`: away from it, climbing to `ATTACK_AGL`), then turns in again (the turn back
   gets another `NOAIM_T` s before it counts as circling); from a ground / sea target it extends until 190 out (room to
