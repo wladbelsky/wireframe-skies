@@ -39,7 +39,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=46`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=47`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -134,7 +134,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 ## Units: enemies and allies (`js/forces.js`, `js/enemies.js`, `js/allies.js`)
 - Both are a `Force` (the shared base). A type: `cls` (`air` / `ground` / `sea`), `glyph` (key into `GLYPHS`), `scale`,
   `hp`, `speed`, `turn`, `names` (labels), `w` (group weight), `fires` (`missile` / `guns`; `aa`: AA streams as well — ships; the cooldown `e.cd` ticks in
-  `Force.update` for every live unit — ships and SAM sites included), `alt` (air), `max` (pool size).
+  `Force.update` for every live unit — ships and SAM sites included), `alt` (air), `ai` (air: `course` holds its course
+  and height — bombers, attackers, transports; else the fighter AI), `pack` (most in an air group, default 4), `max` (pool size).
   A new kind is a new entry (+ a glyph), not new code.
 - Slots are pooled per type and never disposed (a label sprite; aircraft also a `Plane` and a `Trail`). States:
   `live` → `struck` (X + struck-through name, `STRUCK_T`) → `fade` (`FADE_T`) → freed. Units left more than
@@ -153,7 +154,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   with no boss alive, the next wave (never the opening one; paced like any wave) is a boss of `BOSS_HP` (10) — ground ones on land, sea ones
   at sea, air anywhere, not the same type twice in a row — plus its `escort`, within the cap. Boss types are ordinary
   `ENEMY_TYPES` entries (`boss: true`, `max: 1`, `ai`: `orbit` circles `ROUTE.pos` at `R`, `solg` sinks in passes,
-  `ace` = the fighter AI with `e.ace`, drawn as a normal fighter; `special`; `pole` = pole height). Specials fire on
+  `ace` = the fighter AI with `e.ace`, drawn as a normal fighter; `special`; `pole` = pole height; ground / sea ones a
+  `foot`: `Force.freeSpot` keeps every other unit that far from their centre; Excalibur's blade is its type's `extra`
+  draw hook, called from `Force.draw`). Shells lead the plane (`miss(…, sp)`), beams re-aim past it every frame. Specials fire on
   beats while `AUD.fighting` (`e.sp` cooldown) and always miss: `shells` (ring pool, air / ground bursts), `beams`
   (follow their source, end with it), missile salvos (`MISSILES`, `SQUAD.threat`), drones (`drone` type, Arsenal Bird).
   Guns hurt a boss on 15 % of the bursts (35 % otherwise), so the missiles do most of the 10 hits. `boss.spec.js`

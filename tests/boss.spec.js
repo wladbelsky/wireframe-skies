@@ -113,6 +113,7 @@ for (const [name, kinds] of [['air', ['arsenal', 'cruiser', 'solg', 'superace']]
 test('a boss goes down in frame, in the middle of a full fight', async ({ wp }) => {
   await wp.boot();
   const r = await wp.run(() => {
+    __t.props({ bossevery: 0 });   // only the bosses spawned here (none of its own between them)
     __t.forceFight(); const v = __t.sim(30, { audio: true }).violations, out = [];
     for (const k of ['arsenal', 'cruiser', 'superace', 'solg']) {
       const b = BOSSES.spawnType(k); if (!b) continue;
@@ -123,6 +124,7 @@ test('a boss goes down in frame, in the middle of a full fight', async ({ wp }) 
     }
     return { v: v.slice(0, 10), out };
   });
+  expect(r.out.length, 'bosses fought').toBeGreaterThan(0);
   expect(r.v).toEqual([]);
   for (const o of r.out) { expect(o.down, o.k).toBe(true); expect(o.seen, `${o.k} goes down in frame`).toBeGreaterThan(0.8); }
 });

@@ -8,7 +8,8 @@
    A new unit appears like a radar contact (APPEAR_T): a ping ring, the glyph flickers in, the pole / altitude line
    grows from the ground, the name types out.
    A type: { cls: 'air' | 'ground' | 'sea', glyph, scale, hp, speed, turn, names, w (weight in groups), fires, alt, max,
-   pole (ground / sea: pole height, default POLE_H), boss (js/bosses.js) }. */
+   pole (ground / sea: pole height, default POLE_H), foot (others keep this far from its centre), extra (e, c, a, grow): more
+   to draw after the glyph (Excalibur's blade), boss (js/bosses.js) }. */
 const POLE_H = 18;            // ground / sea units: a vertical line from the marker up to their name
 const STRUCK_T = 1.8, FADE_T = 1.3, FAR_BEHIND = 950, APPEAR_T = 1.3, RETREAT_FLICK = 1.5;
 const easeOut = u => 1 - (1 - u) * (1 - u) * (1 - u);
@@ -68,7 +69,7 @@ class Force {
   }
 
   /* ---- placement of groups (ground units only on land, ships only at sea, a minimum spacing) ---- */
-  freeSpot(x, z, d) { return !this.list.some(e => e.ground && Math.hypot(e.pos.x - x, e.pos.z - z) < d); }
+  freeSpot(x, z, d) { return !this.list.some(e => e.ground && Math.hypot(e.pos.x - x, e.pos.z - z) < Math.max(d, e.ty.foot || 0)); }   // clear of big units' footprints too
   /* the right terrain for a class at (x, z): land for ground units, sea with open water 40 ahead (heading h) for ships */
   spotOk(cls, x, z, h) { return cls === 'sea' ? TERRAIN.isSea(x, z) && TERRAIN.land(x + Math.sin(h) * 40, z + Math.cos(h) * 40) <= -0.03 : TERRAIN.isLand(x, z); }
   pickKind(kinds) { return wpick(kinds.map(k => ({ k, w: this.types[k].w }))).k; }   // one of kinds by group weight
@@ -137,7 +138,6 @@ class Force {
         this.appear(e, c); shown = this.typed(e);
         a = e.t < 0.5 ? flicker(e.t) : 1; grow = easeOut(Math.min(1, e.t / (APPEAR_T * 0.5)));
       } else if (e.state === 'live' && !e.full) { setLabel(e.label, e.name, this.css, false); e.full = true; }   // the whole name, once
-      e.drawA = a; e.drawGrow = grow;   // for parts drawn elsewhere (Excalibur's blade, js/bosses.js)
       if (e.ground) {
         const y = e.pos.y, ph = e.ty.pole || POLE_H;
         drawMarker(g, e.pos.x, y, e.pos.z, e.heading, e.ty.scale, c, a, 2);
@@ -149,6 +149,7 @@ class Force {
         if (CFG.dropLines) LINES.drop(e.pos, c, 0.8 * a, 2.2, grow);
         e.label.position.copy(e.pos).y += 2.5;
       }
+      if (e.ty.extra) e.ty.extra(e, c, a, grow);   // a type's own extra parts (Excalibur's blade)
       e.label.visible = CFG.labels && e.state !== 'fade' && shown;
       if (e.state === 'struck') {
         const r = Math.max(2.5, CAM.distTo(e.pos) * 0.022) * (e.ty.boss ? 2 : 1), blink = e.t < 0.6 ? (Math.floor(e.t * 10) % 2 ? 0.4 : 1) : 1;

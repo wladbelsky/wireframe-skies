@@ -69,6 +69,7 @@ const CAM = {
     // a boss: in frame while it fights, the focus on it when it is about to go down and while it burns
     const b = this.boss(h), ek = 1 - Math.exp(-dt * 0.6);
     if (b) { this.bossP.copy(b.pos); if (b.ground) this.bossP.y += 6; this.bossW += ((!b.alive || b.hp - b.incoming <= 1 ? KILL_W : BOSS_W) - this.bossW) * ek; }
+    else if (this.bossK < 0.01) this.bossW = BOSS_W;   // the next boss starts from the normal weight
     this.bossK += ((b ? 1 : 0) - this.bossK) * ek;
     if (this.bossK > 0.001) _cf.lerp(this.bossP, this.bossW * this.bossK * this.combatK);
     smoothDamp(this.focus, _cf, this.focusV, FOCUS_T, dt);
