@@ -5,6 +5,8 @@
    The focus is the flight's centroid; in combat one plane (the hero, kept for a whole shot / CFG.shotLen s) and the
    area it fights in. The hero's targets change every few seconds, so they only move a slow helper point (aux), and the
    focus follows with a critically damped spring (FOCUS_T): no jumps, no jerks — ease in, ease out.
+   A boss near the fight pulls the focus toward it (BOSS_W, eased in / out by bossK) and the camera backs off to keep it
+   in frame; when it is about to go down (the last hit on the way) and while it burns, the focus goes to it (KILL_W).
    CAM.right / CAM.upv are the screen axes (camera-facing crosses in LINES). */
 const FOCUS_T = 1.6, AUX_RATE = 0.25, AUX_W = 0.3;   // focus smoothing time (s), helper follow rate (1/s), its weight
 /* narrow screens (phones in portrait): the camera backs off until the frame is at least as wide as on a screen of
@@ -13,6 +15,7 @@ const FIT_ASPECT = 1.3;
 /* the lagging focus can fall behind a hero on a long run out: the camera backs off (slowly in, more slowly back) until
    the hero is within HERO_FIT of the distance to the camera from the focus, at most up to HERO_BACK times as far */
 const HERO_FIT = 0.3, HERO_BACK = 1.8;
+const BOSS_R = 650, BOSS_W = 0.4, KILL_W = 0.85;   // a boss this near the hero is framed; focus weights while it fights / goes down
 const SHOTS = [
   { az: 180, el: 22, dist: 115, drift: 0 },     // chase
   { az: 140, el: 32, dist: 135, drift: 1.2 },   // rear quarter
@@ -32,6 +35,7 @@ const CAM = {
   focus: new V3(), focusV: new V3(), aux: new V3(), heading: 0, cur: { az: 180, el: 25, dist: 130 }, shot: SHOTS[1], shotT: 0, drift: 0, combatK: 0,
   right: new V3(1, 0, 0), upv: new V3(0, 1, 0), ready: false, back: 1,
   hero: null, heroT: 0,   // in combat the camera follows one plane (a new one with each shot) and the area it fights in
+  bossK: 0, bossW: BOSS_W, bossP: new V3(),   // a boss in the fight: how much it is framed (eased), its weight, where it is
   nextShot() {
     const others = SHOTS.filter(s => s !== this.shot); this.shot = pick(others);
     this.shotT = CFG.shotLen * rand(0.8, 1.2); this.drift = 0;
@@ -43,7 +47,7 @@ const CAM = {
     let best = null, bs = Infinity;
     for (const p of SQUAD.planes) {
       if (p === this.hero && SQUAD.planes.length > 1) continue;
-      const s = p.pos.distanceTo(this.focus) + (p.mode === 'engage' ? 0 : 250) + Math.random() * 60;
+      const s = p.pos.distanceTo(this.focus) + (p.mode === 'engage' ? 0 : 250) + (p.target && p.target.ty.boss ? -200 : 0) + Math.random() * 60;   // the boss fight first
       if (s < bs) { bs = s; best = p; }
     }
     this.hero = best;
@@ -62,15 +66,27 @@ const CAM = {
     if (!this.ready) { this.aux.copy(_ce); this.focus.copy(_cf); this.focusV.set(0, 0, 0); this.heading = ROUTE.heading; this.cur = Object.assign({}, this.target()); this.ready = true; }
     this.aux.lerp(_ce, 1 - Math.exp(-dt * AUX_RATE));
     if (this.combatK > 0.001) _cf.lerp(_ce.copy(h.pos).lerp(this.aux, AUX_W), this.combatK);
+    // a boss: in frame while it fights, the focus on it when it is about to go down and while it burns
+    const b = this.boss(h), ek = 1 - Math.exp(-dt * 0.6);
+    if (b) { this.bossP.copy(b.pos); if (b.ground) this.bossP.y += 6; this.bossW += ((!b.alive || b.hp - b.incoming <= 1 ? KILL_W : BOSS_W) - this.bossW) * ek; }
+    else if (this.bossK < 0.01) this.bossW = BOSS_W;   // the next boss starts from the normal weight
+    this.bossK += ((b ? 1 : 0) - this.bossK) * ek;
+    if (this.bossK > 0.001) _cf.lerp(this.bossP, this.bossW * this.bossK * this.combatK);
     smoothDamp(this.focus, _cf, this.focusV, FOCUS_T, dt);
     this.heading = approachAngle(this.heading, ROUTE.heading, Math.abs(angleWrap(ROUTE.heading - this.heading)) * dt * 0.4 + 0.0005);
     if (CFG.camMode !== 'fixed') { this.shotT -= dt; this.drift += this.shot.drift * dt; if (this.shotT <= 0) this.nextShot(); }
     else if ((this.heroT -= dt) <= 0) { this.heroT = CFG.shotLen * rand(0.8, 1.2); this.pickHero(); }   // fixed: only the hero changes
     const tg = this.target(), k = 1 - Math.exp(-dt * 0.45);
     this.cur.az += angleWrap((tg.az - this.cur.az) * DEG) / DEG * k; this.cur.el = lerp(this.cur.el, tg.el, k); this.cur.dist = lerp(this.cur.dist, tg.dist, k);
-    const want = clamp(h.pos.distanceTo(this.focus) / (HERO_FIT * this.baseDist()), 1, HERO_BACK) * this.combatK + (1 - this.combatK);
+    const far = Math.max(h.pos.distanceTo(this.focus), this.bossP.distanceTo(this.focus) * this.bossK);   // the hero and the boss both in frame
+    const want = clamp(far / (HERO_FIT * this.baseDist()), 1, HERO_BACK) * this.combatK + (1 - this.combatK);
     this.back += (want - this.back) * (1 - Math.exp(-dt * (want > this.back ? 0.8 : 0.25)));
     this.place();
+  },
+  /* the boss to frame: alive near the hero, or shot down and still burning */
+  boss(h) {
+    for (const e of ENEMIES.list) if (e.ty.boss && (e.alive || e.downed) && e.pos.distanceTo(h.pos) < BOSS_R * (e.alive ? 1 : 1.5)) return e;
+    return null;
   },
   baseDist() { return this.cur.dist * (100 / Math.max(10, CFG.zoom)) * (1 + this.combatK * 0.3) * Math.max(1, FIT_ASPECT / Math.max(0.2, camera.aspect)); },
   place() {
@@ -85,5 +101,5 @@ const CAM = {
   distTo(p) { return camera.position.distanceTo(p); },
   /* is p in front of the camera and inside the frame, margin m (0..1 of the half-size) from the edges */
   onScreen(p, m) { _cs.copy(p).project(camera); return _cs.z < 1 && Math.abs(_cs.x) < 1 - (m || 0) && Math.abs(_cs.y) < 1 - (m || 0); },
-  shift(dx, dz) { this.focus.x -= dx; this.focus.z -= dz; this.aux.x -= dx; this.aux.z -= dz; camera.position.x -= dx; camera.position.z -= dz; }
+  shift(dx, dz) { this.focus.x -= dx; this.focus.z -= dz; this.aux.x -= dx; this.aux.z -= dz; this.bossP.x -= dx; this.bossP.z -= dz; camera.position.x -= dx; camera.position.z -= dz; }
 };

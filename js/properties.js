@@ -87,6 +87,14 @@ const WE_PROPERTIES = {
   "max": 10,
   "value": 5
  },
+ "bossevery": {
+  "order": 15,
+  "text": "Boss every, min of combat (0 = never)",
+  "type": "slider",
+  "min": 0,
+  "max": 30,
+  "value": 10
+ },
  "allies": {
   "order": 14,
   "text": "Allied ships, ground units and aircraft",

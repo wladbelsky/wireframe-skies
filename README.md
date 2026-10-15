@@ -15,15 +15,24 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
   looping. The landscape changes as it flies: open sea, coasts, mountains, cities.
 - **Allies** pass by: fleets (AEGIS, DESTROYER, now and then a CARRIER) at sea, armour columns (TANK, APC, SAM, HQ)
   on land, fighter pairs with their own callsigns, an AWACS high above. In a fight they fire at the enemy too.
-- **With music** enemies appear ahead — fighters, bombers, attack jets and helicopters in the air, SAM sites, AA guns,
-  tanks and radars on land, frigates and destroyers at sea. The flight breaks, picks targets, fires missiles on the
-  beat (guns on the snare), then repositions with loops, Immelmanns, split-S, barrel rolls and break turns.
+- **With music** enemies appear ahead — aircraft out of the Ace Combat series (MiG-29A, Su-35S, F-16C, F-14D,
+  Typhoon… fighters, Tu-95 / B-52H bombers, A-10C / F-117A attackers, C-130 / Il-76 transports, Mi-24 / AH-64D
+  helicopters), SAM sites, AA guns, tanks and radars on land, frigates, destroyers and now and then a carrier at sea.
+  The flight breaks, picks targets, fires missiles on the beat (guns on the snare), then repositions with loops,
+  Immelmanns, split-S, barrel rolls and break turns.
   When the music starts the flight first opens into a combat spread; it breaks only when the first contacts show on
   radar, toward them.
   It fights as two pairs: a wingman backs its lead up (the same tough target, or one next to it) and covers its six
   between attacks, damaged and long-ignored targets come first, and the next wave arrives once this one is under way.
   New targets appear like radar contacts: a ping, the pole rising from the ground, the name typing out.
   A destroyed target gets a red **X** and its name is struck through, then it fades away.
+- **Bosses** from the Ace Combat series: every 10 minutes of combat (only time with music counts) the next wave is a
+  boss with its escort, one that takes **10 hits** to bring down — the **Arsenal Bird** circling the fight and
+  launching MQ-101 drones, the heavy command cruiser **Aigaion / Hresvelgr** with its Nimbus salvos, the **SOLG**
+  sinking out of orbit with kinetic rounds, an ace (**Morgan**, **Nosferatu**, **Falken**, **Mr. X**) with a laser,
+  **Stonehenge**'s railguns and **Excalibur**'s laser tower on land, the **Land Battleship** crawling across it,
+  **Scinfaxi / Hrimfaxi** with burst missiles and the **Alicorn** with its rail cannon at sea. Their fire misses too;
+  if the music stops before it goes down, it gets away.
 - **Enemies fire back** (red missiles from fighters, SAM sites and ships, AA streams from guns and ships), but never hit: the targeted plane breaks and pops flares.
 - When the music stops the flight holds for a few seconds, then finishes off the targets still on screen (for up to
   14 s, without music); every other enemy retreats — aircraft turn away, ground units flicker out. Then the flight
@@ -46,6 +55,7 @@ Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedet
 | Audio sensitivity, % | beat detection sensitivity |
 | Enemy density, % | how many enemies a fight brings (0 = none, the flight just flies) |
 | Enemies fire back | hostile missiles and AA fire (always missing) |
+| Boss every, min | a boss every N minutes of combat with music (0 = no bosses) |
 | Aerobatics | how often the flight shows off (0 = calm, also fewer maneuvers in combat) |
 | Allied ships, ground units and aircraft | allies on the map (off: they fade away) |
 | Flight / enemy / ally / grid & sea / coast, contour & city colour | the palette |

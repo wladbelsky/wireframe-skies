@@ -23,6 +23,7 @@ const CFG = {
   sens: 100,            // audio sensitivity, %
   density: 100,         // enemy density, %
   enemyFire: true,      // enemies shoot back (they never hit)
+  bossEvery: 10,        // a boss every N minutes of combat with music (0 = never)
   maneuvers: 5,         // how often the flight shows off (0..10)
   colors: { friend: '#46ff78', enemy: '#ff5a2e', ally: '#4fd4ff', grid: '#2c6fd0', land: '#bfe2ff' },
   allies: true,         // allied ships, ground units and aircraft on the map

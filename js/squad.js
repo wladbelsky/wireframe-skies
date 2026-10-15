@@ -317,7 +317,7 @@ const SQUAD = {
       _fp.copy(p.pos).addScaledVector(p.dir, 2.5 + i * 2.5);
       TRACERS.spawn(_fp, _gv.set(rand(-0.03, 0.03), rand(-0.03, 0.03), rand(-0.03, 0.03)).add(_tg).normalize().multiplyScalar(110), Math.min(0.8, d / 110));
     }
-    if (Math.random() < 0.35) ENEMIES.damage(t, 1);
+    if (Math.random() < (t.ty.boss ? 0.15 : 0.35)) ENEMIES.damage(t, 1);   // a boss shrugs most gun hits off
   },
   /* beats: one missile per low beat (the next plane that is ready), guns on mid beats */
   onBeat(band, strength) {

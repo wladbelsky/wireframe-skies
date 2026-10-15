@@ -3,18 +3,22 @@
    Waves spawn ahead of the flight only while AUD.fighting: ground groups where the map ahead is land, ships where it
    is sea, air groups anywhere. After a fight they retreat (see SQUAD.startMopUp). Hostile missiles always lose lock.
    An air group is one aircraft type under one name; ACE_P of fighter / attack groups are aces: a squadron callsign
-   (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots. */
+   (`SHADOW 1…4`), one more hit to bring down, sharper turns, more frequent jinks and shots.
+   Every CFG.bossEvery minutes of combat a boss comes instead of a wave (js/bosses.js adds the boss types).
+   Air types: ai 'course' holds its course and height (else the fighter AI; js/bosses.js adds its own), pack = most in a group (4). */
 const ENEMY_TYPES = {
-  fighter:   { cls: 'air', glyph: 'arrow', scale: 2.0, hp: 1, speed: 23, turn: 0.55, names: ['MIG-29A', 'SU-30', 'SU-27', 'J-10C'], w: 4, fires: 'missile', alt: [50, 150], max: 10 },
-  bomber:    { cls: 'air', glyph: 'heavy', scale: 1.7, hp: 3, speed: 15, turn: 0.18, names: ['TU-22M', 'H-6K'], w: 1, alt: [70, 130], max: 4 },
-  attacker:  { cls: 'air', glyph: 'arrow', scale: 1.8, hp: 1, speed: 18, turn: 0.4, names: ['SU-25', 'SU-34'], w: 1.5, alt: [35, 70], max: 6 },
-  heli:      { cls: 'air', glyph: 'heli', scale: 1.5, hp: 1, speed: 8, turn: 0.35, names: ['MI-24', 'KA-52'], w: 1.2, alt: [28, 40], max: 6 },
+  fighter:   { cls: 'air', glyph: 'arrow', scale: 2.0, hp: 1, speed: 23, turn: 0.55, names: ['MIG-29A', 'MIG-31B', 'SU-27', 'SU-30M2', 'SU-35S', 'F-16C', 'F-15C', 'F-14D', 'TYPHOON', 'MIRAGE 2000'], w: 4, fires: 'missile', alt: [50, 150], max: 10 },
+  bomber:    { cls: 'air', glyph: 'heavy', scale: 1.7, hp: 3, speed: 15, turn: 0.18, names: ['TU-95', 'TU-160', 'B-52H', 'B-1B'], w: 1, alt: [70, 130], ai: 'course', pack: 2, max: 4 },
+  attacker:  { cls: 'air', glyph: 'arrow', scale: 1.8, hp: 1, speed: 18, turn: 0.4, names: ['A-10C', 'SU-34', 'F-117A', 'TORNADO'], w: 1.5, alt: [35, 70], ai: 'course', max: 6 },
+  transport: { cls: 'air', glyph: 'heavy', scale: 1.9, hp: 2, speed: 13, turn: 0.12, names: ['C-130', 'IL-76', 'C-17A', 'C-1'], w: 0.8, alt: [60, 110], ai: 'course', pack: 2, max: 4 },
+  heli:      { cls: 'air', glyph: 'heli', scale: 1.5, hp: 1, speed: 8, turn: 0.35, names: ['MI-24', 'KA-52', 'AH-64D'], w: 1.2, alt: [28, 40], max: 6 },
   sam:       { cls: 'ground', glyph: 'sam', scale: 2.2, hp: 1, names: ['SAM'], w: 2, fires: 'missile', max: 8 },
   aagun:     { cls: 'ground', glyph: 'aagun', scale: 1.9, hp: 1, names: ['AA GUN'], w: 2.5, fires: 'guns', max: 8 },
   tank:      { cls: 'ground', glyph: 'tank', scale: 2.0, hp: 1, speed: 2, names: ['TANK'], w: 2, max: 8 },
   radar:     { cls: 'ground', glyph: 'radar', scale: 2.2, hp: 1, names: ['RADAR'], w: 0.8, max: 4 },
   frigate:   { cls: 'sea', glyph: 'ship', scale: 2.2, hp: 2, speed: 3, names: ['FRIGATE', 'CORVETTE'], w: 2, fires: 'missile', aa: true, max: 5 },
-  destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', aa: true, max: 3 }
+  destroyer: { cls: 'sea', glyph: 'ship', scale: 2.8, hp: 3, speed: 3, names: ['DESTROYER', 'CRUISER'], w: 1, fires: 'missile', aa: true, max: 3 },
+  carrier:   { cls: 'sea', glyph: 'carrier', scale: 3.0, hp: 4, speed: 2.5, names: ['CARRIER'], w: 0, max: 1 }   // only at the head of a fleet (wave)
 };
 
 const AA_MAX = 4;   // AA streams per beat (the tracer pool is a ring: more would cut live streams short)
@@ -24,7 +28,9 @@ const _e = new V3(), _r = new V3(), _q = new V3(), _b = new V3();
 class EnemyForce extends Force {
   constructor() { super(ENEMY_TYPES, 'enemy'); this.waveT = 0; this.fireT = 3; this.missiles = 0; this.wasFighting = false; this.near = false; }   // near: the next wave opens a fight (spawns nearer)
   get cap() { return Math.round(clamp(16 * CFG.density / 100, 0, 36)); }
+  makeAce(s) { s.ace = true; s.hp += 1; }   // an ace squadron's aircraft: one more hit to bring down (sharper AI: see fly)
   onGone(e) { for (const p of SQUAD.planes) if (p.target === e) SQUAD.release(p); }
+  spawn(type, pos, heading, name) { const s = super.spawn(type, pos, heading, name); if (s && s.ty.boss) BOSSES.arm(s); return s; }   // a boss: its own state (js/bosses.js)
 
   /* ---- waves ---- */
   wave() {
@@ -34,12 +40,15 @@ class EnemyForce extends Force {
     const land = TERRAIN.land(_e.x, _e.z), groundOk = land > 0.03, seaOk = land < -0.06;
     const airP = groundOk || seaOk ? 0.45 : 1;
     if (Math.random() < airP) this.airGroup(Math.min(room, randi(2, 3 + Math.round(heavy * 2))), k);
-    else if (seaOk) this.seaGroup(_e, Math.min(room, randi(1, 3)), ['frigate', 'destroyer'], 70);
+    else if (seaOk) {   // a fleet: now and then a carrier with its escorts
+      const h = rand(0, TAU), cv = room > 1 && Math.random() < 0.25 ? this.seaGroup(_e, 1, ['carrier'], 20, h) : 0;
+      this.seaGroup(_e, Math.min(room - cv, randi(1, 3)), ['frigate', 'destroyer'], 70, h);
+    }
     else this.groundGroup(_e, Math.min(room, randi(3, 5 + Math.round(heavy * 2))), ['sam', 'aagun', 'tank', 'radar'], 45);
     return this.list.length - n0;
   }
   airGroup(n, k = 1) {
-    const type = wpick(['fighter', 'bomber', 'attacker', 'heli'].map(k => ({ k, w: ENEMY_TYPES[k].w }))).k, ty = ENEMY_TYPES[type];
+    const type = wpick(['fighter', 'bomber', 'attacker', 'transport', 'heli'].map(k => ({ k, w: ENEMY_TYPES[k].w }))).k, ty = ENEMY_TYPES[type];
     const ahead = (type === 'heli' ? rand(300, 450) : rand(500, 750)) * k;
     _e.copy(ROUTE.pos).addScaledVector(ROUTE.fwd, ahead).addScaledVector(ROUTE.right, rand(-300, 300)); _e.y = TERRAIN.height(_e.x, _e.z) + rand(ty.alt[0], ty.alt[1]);
     // they come at the flight, roughly
@@ -47,11 +56,11 @@ class EnemyForce extends Force {
     _r.set(Math.cos(toward), 0, -Math.sin(toward)); _b.set(Math.sin(toward), 0, Math.cos(toward));
     // one type, one name for the whole group — or an ace squadron with its own callsign
     const ace = (type === 'fighter' || type === 'attacker') && Math.random() < ACE_P, name = ace ? pick(ACE_CALLSIGNS) : pick(ty.names);
-    for (let i = 0; i < Math.min(n, type === 'bomber' ? 2 : 4); i++) {
+    for (let i = 0; i < Math.min(n, ty.pack || 4); i++) {
       _q.copy(_e).addScaledVector(_r, (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 12).addScaledVector(_b, -Math.ceil(i / 2) * 9);
       const s = this.spawn(type, _q, toward, ace ? `${name} ${i + 1}` : name); if (!s) continue;
       s.mode = type === 'heli' ? 'hover' : 'merge';
-      if (ace) { s.ace = true; s.hp += 1; }
+      if (ace) this.makeAce(s);
     }
   }
 
@@ -60,12 +69,17 @@ class EnemyForce extends Force {
     if (fighting && !this.wasFighting) { this.waveT = rand(4, 6); this.near = true; }   // first the flight spreads out, then the opening wave, a bit nearer
     this.wasFighting = fighting;
     if (fighting && CFG.density > 0) {
-      this.waveT -= dt;
-      const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4)));
-      // the next wave when this one is under way (not while most of it hasn't been touched yet)
-      if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) { this.wave(); this.waveT = rand(5, 9) / Math.max(0.3, CFG.density / 100); }
+      this.waveT -= dt; if (CFG.bossEvery > 0) BOSSES.t += dt;   // boss time: minutes of combat with music
+      const want = Math.max(3, Math.round(this.cap * (0.45 + AUD.heavy * 0.4))), k = Math.max(0.3, CFG.density / 100);
+      // the next wave when this one is under way (not while most of it hasn't been touched yet) — a boss instead when
+      // one is due (never as the opening wave); paced like any wave
+      if (this.waveT <= 0 && this.alive < want && this.untouched() < UNTOUCHED_MAX * Math.max(1, CFG.density / 100)) {
+        if (!this.near && BOSSES.due() && BOSSES.wave()) this.waveT = rand(10, 14) / k;
+        else { this.wave(); this.waveT = rand(5, 9) / k; }
+      }
     }
     if (fighting) this.fireT = Math.max(-1, this.fireT - dt);
+    BOSSES.update(dt);
     super.update(dt);   // after a fight SQUAD.startMopUp / endMopUp send the enemies into retreat
   }
   /* enemies nobody has gone for yet; aircraft that flew on past the fight (away from it, 300+ out) don't hold the next wave up */
@@ -83,8 +97,9 @@ class EnemyForce extends Force {
     e.modeT -= dt;
     const tgt = this.nearestFriend(e.pos);
     if (e.state === 'retreat') { _q.subVectors(e.pos, ROUTE.pos).setY(0).normalize(); _q.y = 0.25; }   // turn away and climb
+    else if (e.ty.ai === 'orbit' || e.ty.ai === 'solg') BOSSES.wish(e, _q);   // superweapons (js/bosses.js); a superace flies as a fighter
     else if (e.mode === 'hover') { _q.subVectors(ROUTE.pos, e.pos).setY(0); const d = _q.length(); _q.normalize(); if (d < 120) _q.applyAxisAngle(UP, 1.2); _q.y = (34 - pl.agl) * 0.05; }
-    else if (e.type === 'bomber' || e.type === 'attacker') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - pl.agl) * 0.01; }
+    else if (e.ty.ai === 'course') { _q.copy(pl.dir); _q.y = (e.ty.alt[0] + 20 - pl.agl) * 0.01; }
     else {   // fighters: merge, then dogfight with jinks
       if (e.mode === 'merge' && tgt && e.pos.distanceTo(tgt.pos) < 180) { e.mode = 'dogfight'; e.modeT = rand(3, 6); }
       if (e.mode === 'dogfight' && e.modeT <= 0) { e.modeT = e.ace ? rand(2.5, 5) : rand(4, 8); if (Math.random() < (e.ace ? 0.8 : 0.5)) tryManeuver(pl, ['breakTurn', 'barrel', 'splitS', 'immelmann']); }
@@ -97,6 +112,7 @@ class EnemyForce extends Force {
   /* ---- hostile fire (beats; never more often than every couple of seconds) ---- */
   onBeat(band) {
     if (!CFG.enemyFire) return;
+    BOSSES.onBeat(band);   // the bosses' show-off attacks
     if (band === 'mid' && Math.random() < 0.5) {   // AA guns and ships' AA: streams that miss, from a few of them (random start)
       const L = this.list, k0 = randi(0, L.length - 1);
       for (let k = 0, shots = 0; k < L.length && shots < AA_MAX; k++) {

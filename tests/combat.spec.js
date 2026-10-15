@@ -234,3 +234,44 @@ test('music start: the flight spreads out and breaks only when the first contact
   expect(r.after, `headings turned toward the contacts (at contact: ${r.at.toFixed(2)})`).toBeGreaterThan(0.6);
   expect(r.engaging, 'planes that went for a target within 5 s').toBeGreaterThan(2);
 });
+
+test('fleets are now and then led by a carrier; transports fly in pairs; the flight brings both down', async ({ wp }) => {
+  await wp.boot();
+  const r = await wp.run(() => {
+    const out = { fleets: 0, carriers: 0, bad: [], transports: 0 };
+    // waves over open sea: put the route point over water (only for the spawning; the units are freed again)
+    const keep = ROUTE.pos.clone();
+    for (let k = 0; k < 600 && out.fleets < 60; k++) {
+      const a = rand(0, TAU), d = rand(0, 4000); ROUTE.pos.set(keep.x + Math.sin(a) * d, keep.y, keep.z + Math.cos(a) * d);
+      const n0 = ENEMIES.list.length; ENEMIES.wave(); const g = ENEMIES.list.slice(n0);
+      if (g.some(e => e.ty.cls === 'sea')) {
+        out.fleets++; const cv = g.filter(e => e.type === 'carrier');
+        if (cv.length) out.carriers++;
+        if (cv.length > 1 || cv.some(e => e.hp !== 4 || !TERRAIN.isSea(e.pos.x, e.pos.z)) || (cv.length && g.length < 2)) out.bad.push(g.map(e => e.type).join(','));
+      }
+      for (const e of g) ENEMIES.free(e);
+    }
+    ROUTE.pos.copy(keep);
+    for (let k = 0; k < 300; k++) {
+      const n0 = ENEMIES.list.length; ENEMIES.airGroup(4); const g = ENEMIES.list.slice(n0);
+      if (g.length && g[0].type === 'transport') { out.transports++; if (g.length > 2 || g.some(e => e.hp !== 2 || e.name !== g[0].name)) out.bad.push('transport ' + g.map(e => e.name).join(',')); }
+      for (const e of g) ENEMIES.free(e);
+    }
+    // the flight shoots down a transport and a carrier (nothing else around)
+    __t.props({ enemydensity: 0 }); __t.forceFight(); __t.sim(3, { audio: true });
+    const c = SQUAD.centroid(new THREE.Vector3()), down = {}, v = [];
+    const t = ENEMIES.spawn('transport', c.clone().addScaledVector(ROUTE.fwd, 250).setY(TERRAIN.height(c.x, c.z) + 90), ROUTE.heading + Math.PI);
+    let sea = null; for (let i = 0; i < 4000 && !sea; i++) { const a = rand(0, TAU), d = rand(150, 600), x = c.x + Math.sin(a) * d, z = c.z + Math.cos(a) * d; if (TERRAIN.land(x, z) < -0.12) sea = new THREE.Vector3(x, 0, z); }
+    const cv = sea && ENEMIES.spawn('carrier', sea, 0);
+    for (const e of [t, cv]) { if (!e) continue; const w = __t.sim(120, { audio: true, until: () => !e.alive }); v.push(...w.violations); down[e.type] = e.downed; }
+    return { ...out, down, v: v.slice(0, 10) };
+  });
+  expect(r.bad).toEqual([]);
+  expect(r.fleets).toBeGreaterThan(20);
+  expect(r.carriers, `carriers in ${r.fleets} fleets`).toBeGreaterThan(r.fleets * 0.08);
+  expect(r.carriers).toBeLessThan(r.fleets * 0.45);
+  expect(r.transports).toBeGreaterThan(5);
+  expect(r.v).toEqual([]);
+  expect(r.down.transport).toBe(true);
+  expect(r.down.carrier).toBe(true);
+});

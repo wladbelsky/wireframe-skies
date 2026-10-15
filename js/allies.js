@@ -16,7 +16,7 @@ const ALLY_TYPES = {
 };
 const ALLY_CALLSIGNS = ['VIPER', 'COBRA', 'LANCER', 'FALCON', 'HAWK', 'SABER', 'RAPIER', 'TALON'];
 const ALLY_CAP = 14;
-const SEP_R = 24, SEP_K = 1.6;   // allied aircraft keep apart: chasing the same enemy they merged into one glyph
+const SEP_R = 24, SEP_K = 1.6, FORM_R = 8;   // allied aircraft keep apart: chasing the same enemy they merged into one glyph
 
 const _a = new V3(), _ad = new V3(), _ab = new V3(), _as = new V3();
 class AllyForce extends Force {
@@ -83,7 +83,8 @@ class AllyForce extends Force {
     let w = 0; if (best) while (this.list.some(o => o !== e && o.alive && o.target === best && o.wing === w)) w++;
     e.wing = w; return best;
   }
-  /* allied aircraft keep apart (and clear of the flight): the wish D is pushed away from any closer than SEP_R */
+  /* allied aircraft keep apart (and clear of the flight): the wish D is pushed away from any closer than SEP_R — but a
+     group cruising on its common heading in peace keeps its formation (spawned 9 / 7 apart; FORM_R) */
   steerAir(e, D, dt, rateMul) {
     airWish(e, D); this.separate(e, D, this.list); this.separate(e, D, SQUAD.planes);
     super.steerAir(e, D, dt, rateMul);
@@ -91,8 +92,9 @@ class AllyForce extends Force {
   separate(e, D, list) {
     for (const o of list) {
       if (o === e || (o.force && (!o.plane || o.state !== 'live'))) continue;
+      const R = o.force && !SQUAD.engaged && o.heading === e.heading ? FORM_R : SEP_R;   // formation mates cruising in peace: only never too close
       _as.subVectors(e.pos, o.pos); const d = _as.length();
-      if (d < SEP_R && d > 1e-3) { _as.y *= 0.5; D.addScaledVector(_as, SEP_K * (1 - d / SEP_R) / d); }
+      if (d < R && d > 1e-3) { _as.y *= 0.5; D.addScaledVector(_as, SEP_K * (1 - d / R) / d); }
     }
   }
   /* in a fight: one allied missile per beat at most, from a ship / SAM / fighter with an enemy in range */
