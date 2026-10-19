@@ -1,5 +1,6 @@
 // Not tests: render images.
-//   PREVIEW=1      → preview.jpg (the Workshop / project.json preview) from a deterministic combat moment
+//   PREVIEW=1      → preview.jpg (1:1, the Workshop / project.json preview) and screenshot.jpg (16:9, README) from the
+//                    same deterministic combat moment
 //   PREVIEW=shots  → test-results/shots/*.png: a few scenarios for looking at changes (splash, peace with allies, combat,
 //                    close-ups, a new contact appearing, mop-up, retreat, a boss)
 // PREVIEW_T = seconds of combat before the preview shot. See CLAUDE.md "Running & testing".
@@ -15,15 +16,20 @@ const toCoast = () => {
   __t.sim(0.05); for (const p of SQUAD.planes) p.trail.reset(p.pos);
 };
 
-test('render preview.jpg', async ({ wp, page }) => {
-  test.skip(process.env.PREVIEW !== '1', 'set PREVIEW=1 to render preview.jpg');
+test('render preview.jpg (1:1) and screenshot.jpg (16:9)', async ({ wp, page }) => {
+  test.skip(process.env.PREVIEW !== '1', 'set PREVIEW=1 to render preview.jpg and screenshot.jpg');
+  await page.setViewportSize({ width: 1024, height: 1024 });
   await wp.boot();
   await wp.run(([toCoast, t]) => {
     (0, eval)(toCoast)();
     __t.sim(30, { audio: false }); __t.forceFight(); __t.sim(t, { audio: true, draw: true });
     draw();
-  }, [`(${toCoast})`, Number(process.env.PREVIEW_T || 40)]);
+  }, [`(${toCoast})`, Number(process.env.PREVIEW_T || 95)]);
   await page.screenshot({ path: path.join(__dirname, '..', 'preview.jpg'), type: 'jpeg', quality: 88 });
+  // the same moment, wide
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await wp.run(() => { resize(); CAM.place(); draw(); });
+  await page.screenshot({ path: path.join(__dirname, '..', 'screenshot.jpg'), type: 'jpeg', quality: 88 });
 });
 
 test('render scenario shots', async ({ wp, page }) => {

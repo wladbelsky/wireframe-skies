@@ -199,7 +199,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   - **When adding a mode, an enemy state or a pool**, update the sets / bounds in `inpage.js`.
   - `repo.spec.js` checks the cache-buster (all tags equal, matches "Current: `v=N`" here), the load order line
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.
-  - `preview.jpg`: `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
+  - `preview.jpg` (1:1, the Workshop preview in `project.json`) and `screenshot.jpg` (16:9, README), the same moment:
+    `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
     (`$env:PREVIEW_T` = seconds of combat before the shot). `$env:PREVIEW = 'shots'` renders a few scenarios
     (splash, peace with allies, combat, close-ups, a contact appearing, mop-up, retreat, a boss) into `test-results/shots/` —
     the quickest way to look at a visual change.
