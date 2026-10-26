@@ -46,6 +46,12 @@ test('project.json is a complete Wallpaper Engine web project', () => {
   expect(p.type).toBe('web');
   expect(p.file).toBe('index.html');
   expect(fs.existsSync(path.join(root, p.preview)), 'preview image').toBe(true);
+  if (/\.gif$/i.test(p.preview)) {   // Wallpaper Engine's limits for an animated preview: ≤ 256x256, under 1 MB
+    const g = fs.readFileSync(path.join(root, p.preview));
+    expect(g.subarray(0, 6).toString('latin1')).toBe('GIF89a');
+    expect(Math.max(g.readUInt16LE(6), g.readUInt16LE(8)), 'preview.gif size, px').toBeLessThanOrEqual(256);
+    expect(g.length, 'preview.gif bytes').toBeLessThan(1024 * 1024);
+  }
   for (const k of ['title', 'description']) expect(p[k], k).toBeTruthy();
   expect(p.general.supportsaudioprocessing).toBe(true);
   for (const [k, prop] of Object.entries(p.general.properties)) {
