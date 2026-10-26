@@ -1,11 +1,46 @@
 // Not tests: render images.
-//   PREVIEW=1      → preview.jpg (1:1, the Workshop / project.json preview) and screenshot.jpg (16:9, README) from the
-//                    same deterministic combat moment
+//   PREVIEW=1      → preview.gif (animated 256x256, 4 s, the Workshop / project.json preview — Wallpaper Engine takes
+//                    ≤ 256 px, < 1 MB, aim < 500 KB; seed GIF.seed) and screenshots/<scene>.jpg (1280x720, README; see
+//                    SCENES, each with its own seed), deterministic moments
+//   PREVIEW=gif    → test-results/gif-<seed>.gif (+ gif-<seed>-sheet.png, four frames to look at) for seeds 1..GIF.seeds:
+//                    candidates; put the best one's seed into GIF.seed and render PREVIEW=1
+//   PREVIEW=scenes → test-results/<scene>-<seed>.jpg for seeds 1..SHOT.seeds (-g "boss," for one scene): candidates;
+//                    put the best seed into the scene and render PREVIEW=1
 //   PREVIEW=shots  → test-results/shots/*.png: a few scenarios for looking at changes (splash, peace with allies, combat,
 //                    close-ups, a new contact appearing, mop-up, retreat, a boss)
-// PREVIEW_T = seconds of combat before the preview shot. See CLAUDE.md "Running & testing".
-const { test } = require('./support/harness');
+// PREVIEW_T = seconds of combat before the GIF. See CLAUDE.md "Running & testing".
+const { test, expect } = require('./support/harness');
+const fs = require('fs');
 const path = require('path');
+const { GIFEncoder, quantize, applyPalette } = require('gifenc');
+
+const GIF = { size: 256, render: 512, frames: 40, fps: 10, colors: 96, seeds: 6, seed: 5 };   // seed: the one in preview.gif ($env:SEED overrides)
+const SHOT = { width: 1280, height: 720, seeds: 6 };
+
+/* the README screenshots (screenshots/<name>.jpg; the first one on top, the rest in a row). Each: seed (the one in
+   screenshots/), peace (s before the music, default 30), fight (s of combat; none = a peace shot), then (in the page,
+   after that), until(tries) (in the page, every 0.5 s: the moment to take), tries (× 0.5 s). The page functions are
+   serialised: no closures; __seen(p, margin) = on screen. */
+const SCENES = {
+  // over a coast: the flight on ground targets and aircraft
+  combat: { seed: 1, fight: 95 },
+  // a fight at sea: the moment of preview.gif, wide
+  sea: { seed: 5, fight: 95 },
+  // a boss wave (with its escort) and its special firing
+  boss: { seed: 5, fight: 20, then: () => { BOSSES.t = CFG.bossEvery * 60; }, tries: 400, until: (tries) => {
+    const b = BOSSES.boss, vis = !!b && b.t > 3 && __seen(b.pos, 0.2) && SQUAD.planes.some(p => __seen(p.pos, 0.1));
+    window.__vis = (window.__vis || 0) + (vis ? 1 : 0);
+    const special = BOSSES.beams.some(m => m.on) || BOSSES.shells.some(s => s.on) || MISSILES.pool.some(m => m.on && m.enemy) ||
+      ENEMIES.list.some(e => e.alive && e.type === 'drone');
+    window.__why = { boss: b && b.type, vis: __vis, special };   // shown when no moment is found
+    return vis && (special || __vis > 30);
+  } },
+  // no music: the flight in formation, an allied group passing
+  peace: { seed: 6, peace: 20, tries: 400, until: () => {
+    const allies = ALLIES.list.filter(e => e.alive && e.t > 3 && __seen(e.pos, 0.1)).length;
+    return allies >= 3 && SQUAD.planes.filter(p => __seen(p.pos, 0.15)).length === 4;
+  } }
+};
 
 /* start over a coastline, so land and sea are both in the shot */
 const toCoast = () => {
@@ -16,20 +51,98 @@ const toCoast = () => {
   __t.sim(0.05); for (const p of SQUAD.planes) p.trail.reset(p.pos);
 };
 
-test('render preview.jpg (1:1) and screenshot.jpg (16:9)', async ({ wp, page }) => {
-  test.skip(process.env.PREVIEW !== '1', 'set PREVIEW=1 to render preview.jpg and screenshot.jpg');
-  await page.setViewportSize({ width: 1024, height: 1024 });
-  await wp.boot();
+/* boot (seed), start over a coast, fight for `t` s, then record GIF.frames frames at GIF.fps into a 256² GIF (one
+   palette for all frames: no flicker); returns its bytes. The contact sheet (four frames) goes to `sheet` when given. */
+async function renderGif(wp, page, seed, t, sheet) {
+  await page.setViewportSize({ width: GIF.render, height: GIF.render });
+  await wp.boot({ seed });
   await wp.run(([toCoast, t]) => {
     (0, eval)(toCoast)();
-    __t.sim(30, { audio: false }); __t.forceFight(); __t.sim(t, { audio: true, draw: true });
-    draw();
-  }, [`(${toCoast})`, Number(process.env.PREVIEW_T || 95)]);
-  await page.screenshot({ path: path.join(__dirname, '..', 'preview.jpg'), type: 'jpeg', quality: 88 });
-  // the same moment, wide
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await wp.run(() => { resize(); CAM.place(); draw(); });
-  await page.screenshot({ path: path.join(__dirname, '..', 'screenshot.jpg'), type: 'jpeg', quality: 88 });
+    // drawing every step is slow in SwiftShader: only the last seconds (trails, labels typed out)
+    __t.sim(30, { audio: false }); __t.forceFight(); __t.sim(t - 4, { audio: true }); __t.sim(4, { audio: true, draw: true });
+  }, [`(${toCoast})`, t]);
+  const frames = [];
+  for (let i = 0; i < GIF.frames; i++) {
+    const b64 = await wp.run(([size, fps, i, n]) => {
+      __t.sim(1 / fps, { audio: true, draw: true, check: false }); draw();
+      // downscale in halving steps (smooth, no aliasing) — in the same task as the render, so the WebGL buffer is still there
+      const C = window.__gifC || (window.__gifC = {});
+      let src = renderer.domElement, w = src.width;
+      while (w > size) {
+        w = Math.max(size, w >> 1);
+        const c = C[w] || (C[w] = Object.assign(document.createElement('canvas'), { width: w, height: w }));
+        const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, w, w); src = c;
+      }
+      const sh = C.sheet || (C.sheet = Object.assign(document.createElement('canvas'), { width: size * 2, height: size * 2 }));
+      const k = [0, n / 3, 2 * n / 3, n - 1].map(Math.floor).indexOf(i);
+      if (k >= 0) sh.getContext('2d').drawImage(src, (k % 2) * size, (k >> 1) * size);
+      const d = src.getContext('2d').getImageData(0, 0, size, size).data;
+      let s = ''; for (let j = 0; j < d.length; j += 0x8000) s += String.fromCharCode.apply(null, d.subarray(j, j + 0x8000));
+      return btoa(s);
+    }, [GIF.size, GIF.fps, i, GIF.frames]);
+    frames.push(new Uint8Array(Buffer.from(b64, 'base64')));
+  }
+  if (sheet) fs.writeFileSync(sheet, Buffer.from(await wp.run(() => __gifC.sheet.toDataURL('image/png').split(',')[1]), 'base64'));
+  // the palette from every other frame
+  const all = new Uint8Array(frames[0].length * Math.ceil(frames.length / 2));
+  frames.filter((f, i) => i % 2 === 0).forEach((f, i) => all.set(f, i * f.length));
+  const palette = quantize(all, GIF.colors), gif = GIFEncoder();
+  frames.forEach((f, i) => gif.writeFrame(applyPalette(f, palette), GIF.size, GIF.size,
+    i ? { delay: 1000 / GIF.fps } : { palette, delay: 1000 / GIF.fps, repeat: 0 }));
+  gif.finish();
+  const bytes = gif.bytes();
+  expect(bytes.length, 'Wallpaper Engine takes previews under 1 MB').toBeLessThan(1024 * 1024);
+  return bytes;
+}
+
+/* boot (seed) over a coast, run scene S (see SCENES) and take the screenshot into `out` */
+async function renderScene(wp, page, seed, S, out) {
+  await page.setViewportSize({ width: SHOT.width, height: SHOT.height });
+  await wp.boot({ seed });
+  await wp.run(([toCoast, peace, fight]) => {
+    (0, eval)(toCoast)();
+    window.__seen = (p, m) => { camera.updateMatrixWorld(); return CAM.onScreen(p, m); };   // no render between steps here
+    __t.sim(peace, { audio: false });
+    if (fight !== null) { __t.forceFight(); __t.sim(fight, { audio: true }); }
+  }, [`(${toCoast})`, S.peace || 30, S.fight === undefined ? null : S.fight]);
+  if (S.then) await wp.run(S.then);
+  if (S.until) {
+    let ok = false;
+    for (let i = 0; i < (S.tries || 200) && !(ok = await wp.run(S.until, i)); i++) await wp.sim(0.5, { audio: S.fight !== undefined, check: false });
+    expect(ok, `the moment ${JSON.stringify(await wp.run(() => window.__why))}`).toBe(true);
+  }
+  await wp.run(() => draw());
+  await page.screenshot({ path: out, type: 'jpeg', quality: 88 });
+}
+
+const PREVIEW_T = Number(process.env.PREVIEW_T || 95);
+
+test('render preview.gif (256², animated)', async ({ wp, page }) => {
+  test.skip(process.env.PREVIEW !== '1', 'set PREVIEW=1 to render preview.gif and screenshots/');
+  const gif = await renderGif(wp, page, Number(process.env.SEED || GIF.seed), PREVIEW_T);
+  fs.writeFileSync(path.join(__dirname, '..', 'preview.gif'), gif);
+  console.log(`preview.gif: ${(gif.length / 1024).toFixed(0)} KB`);
+});
+
+for (const [name, S] of Object.entries(SCENES)) {
+  test(`render screenshots/${name}.jpg`, async ({ wp, page }) => {
+    test.skip(process.env.PREVIEW !== '1', 'set PREVIEW=1 to render preview.gif and screenshots/');
+    const dir = path.join(__dirname, '..', 'screenshots'); fs.mkdirSync(dir, { recursive: true });
+    await renderScene(wp, page, S.seed, S, path.join(dir, `${name}.jpg`));
+  });
+  for (let seed = 1; seed <= SHOT.seeds; seed++) test(`render ${name}, seed ${seed}`, async ({ wp, page }) => {
+    test.skip(process.env.PREVIEW !== 'scenes', 'set PREVIEW=scenes to render test-results/<scene>-<seed>.jpg');
+    const dir = path.join(__dirname, '..', 'test-results'); fs.mkdirSync(dir, { recursive: true });
+    await renderScene(wp, page, seed, S, path.join(dir, `${name}-${seed}.jpg`));
+  });
+}
+
+for (let seed = 1; seed <= GIF.seeds; seed++) test(`render GIF candidate, seed ${seed}`, async ({ wp, page }) => {
+  test.skip(process.env.PREVIEW !== 'gif', 'set PREVIEW=gif to render test-results/gif-<seed>.gif');
+    const dir = path.join(__dirname, '..', 'test-results'); fs.mkdirSync(dir, { recursive: true });
+  const gif = await renderGif(wp, page, seed, PREVIEW_T, path.join(dir, `gif-${seed}-sheet.png`));
+  fs.writeFileSync(path.join(dir, `gif-${seed}.gif`), gif);
+  console.log(`gif-${seed}.gif: ${(gif.length / 1024).toFixed(0)} KB`);
 });
 
 test('render scenario shots', async ({ wp, page }) => {

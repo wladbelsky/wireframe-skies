@@ -2,7 +2,7 @@
 	"title": "Wireframe Skies",
 	"description": "A mission-replay style flight over a wireframe map: a four-ship flight cruises over a grid, coastlines, contour lines and cities that change as it flies. Allied fleets, armour columns and aircraft pass by. When music plays, enemy aircraft, SAM sites, guns and ships appear; the flight breaks, loops and rolls, fires on the beat and the targets are crossed out. Squadron name, colours, camera and density are configurable.",
 	"file": "index.html",
-	"preview": "preview.jpg",
+	"preview": "preview.gif",
 	"ratingsex": "none",
 	"ratingviolence": "mild",
 	"type": "web",
