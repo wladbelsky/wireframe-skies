@@ -2,7 +2,7 @@
 #   powershell -ExecutionPolicy Bypass -File tools/test.ps1                     # everything
 #   powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/flight.spec.js # one file (any Playwright Test arguments)
 #   $env:SEED = 7; powershell -ExecutionPolicy Bypass -File tools/test.ps1       # another random seed
-#   $env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js   # re-render preview.gif + screenshot.jpg ($env:PREVIEW_T = combat seconds; 'gif' = candidates)
+#   $env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js   # re-render preview.gif + screenshots/ ('gif' / 'scenes' = candidates)
 # node_modules lives in a Docker volume, so Linux binaries never land in the checkout.
 $ErrorActionPreference = 'Stop'
 $image = 'mcr.microsoft.com/playwright:v1.63.0-noble'   # keep in sync with @playwright/test in package.json

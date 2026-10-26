@@ -3,7 +3,11 @@
 **[▶ Live demo](https://wladbelsky.github.io/wireframe-skies/)** — runs in the browser (⚙ SETTINGS → demo beat, or play an audio file).
 **[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3815966692)** — subscribe in Wallpaper Engine.
 
-![screenshot](screenshot.jpg)
+![A fight over a coast: the flight on ground targets](screenshots/combat.jpg)
+
+| A fight at sea | A boss: the Arsenal Bird and its drones | No music: an allied column passing |
+|---|---|---|
+| ![A fight at sea](screenshots/sea.jpg) | ![A boss](screenshots/boss.jpg) | ![Peace](screenshots/peace.jpg) |
 
 A flight replay in the style of a mission-results screen: a dark void, a perspective grid and a wireframe map in
 relief — coastlines, contour lines over hills and mountains, city blocks — and schematic, glowing symbols: the four-ship flight as green arrowheads with

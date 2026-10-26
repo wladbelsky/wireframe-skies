@@ -72,8 +72,9 @@ test('every WE property is read by applyUserProperties', () => {
 test('README links the live demo and the Workshop page of project.json', () => {
   const r = read('README.md'), p = JSON.parse(read('project.json'));
   expect(r).toContain('https://wladbelsky.github.io/wireframe-skies/');
-  expect(r).toContain('](screenshot.jpg)');
-  expect(fs.existsSync(path.join(root, 'screenshot.jpg')), 'screenshot.jpg').toBe(true);
+  const shots = [...r.matchAll(/!\[[^\]]*\]\((screenshots\/[^)]+)\)/g)].map(m => m[1]);
+  expect(shots.length, 'README screenshots').toBeGreaterThan(0);
+  for (const f of shots) expect(fs.existsSync(path.join(root, f)), f).toBe(true);
   expect(p.workshopid).toBeTruthy();
   expect(p.workshopurl).toBe('steam://url/CommunityFilePage/' + p.workshopid);
   expect(r).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=' + p.workshopid);
