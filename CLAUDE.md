@@ -42,7 +42,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=49`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=50`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -195,14 +195,17 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   holds; the ground composes the map in display space (sRGB palette uniforms, `GROUND_K`, anti-aliased coverage) and
   converts it to linear once (`sRGBTransferEOTF`) — the r149 map exactly; label canvases are `SRGBColorSpace`
   textures (their core colour is blended in sRGB) with crisp text and **no baked glow** (no `shadowBlur`): bloom
-  makes the glow, so names are clean with it off and don't get a double halo with it on. Additive overlaps add up in linear light (brighter where lines
+  makes the glow, so names are clean with it off and don't get a double halo with it on. Label sprites are also on
+  `LABEL_LAYER` (1): `PIPE.names`, a half-resolution pass of that layer, is added × `BLOOM.names` to the bloom's input
+  only, so every name glows (red cores sit below the threshold) without changing the text or the map. Additive overlaps add up in linear light (brighter where lines
   cross) and roll off to white (`rolloff`).
 - **Render pipeline** (`PIPE`, `main.js`; `renderFrame()` is the only place that renders a frame): with bloom on, a
   `THREE.RenderPipeline` of `pass(scene, camera)` + `THREE.bloom` (strength `BLOOM.strength` × the `bloomstrength`
   property, radius, luminance threshold, soft knee) + `rolloff()` (identity below 0.76, a soft shoulder to white —
   as in carrier-wallpaper); bloom off (property `bloom`): plain `renderer.render`. `updatePipeline()` rebuilds the output
   node when the property flips (that combination compiles on its next frame).
-- **Shader warm-up** (`warmShaders`): `compileAsync` of the scene (or the scene pass) before the loop starts, hidden
+- **Shader warm-up** (`warmShaders`): `compileAsync` of the scene (or the scene pass, and `PIPE.names` with the camera
+  on `LABEL_LAYER`: its own target) before the loop starts, hidden
   objects shown and empty pools given one instance during its synchronous part (node `compile()` walks only visible
   objects). The first frame compiles only the small post passes (bloom, output quad) — under the splash;
   `render.spec.js` checks nothing compiles after that, a boss fight included. A new material created at runtime would
