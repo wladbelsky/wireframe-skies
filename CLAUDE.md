@@ -244,7 +244,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   - `repo.spec.js` checks the cache-buster (all tags equal, matches "Current: `v=N`" here), the load order line
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.
   - `preview.gif` (animated 256², 4 s, rendered at 512² and downscaled; the Workshop preview in `project.json` — WE
-    takes ≤ 256 px, < 1 MB, aim < 500 KB; encoded with the `gifenc` devDependency, `repo.spec.js` checks the limits;
+    takes ≤ 256 px, < 1 MB, aim < 500 KB — with bloom it is ~600 KB, its gradients compress worse; encoded with the `gifenc` devDependency, `repo.spec.js` checks the limits;
     seed `GIF.seed`) and the README screenshots `screenshots/<scene>.jpg` (1280x720, `SCENES` in `preview.spec.js`:
     combat / sea / boss / peace, each with its seed and the moment to take), deterministic:
     `$env:PREVIEW = 1; powershell -ExecutionPolicy Bypass -File tools/test.ps1 tests/preview.spec.js`
