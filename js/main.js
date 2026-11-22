@@ -102,7 +102,7 @@ async function warmShaders() {
    around the threshold (red ones below it): a half-resolution pass of LABEL_LAYER adds them × BLOOM.names to the
    bloom's input only — every name glows, the text on screen and the map stay as they are.
    Bloom off: plain renderer.render. ---- */
-const BLOOM = { strength: 0.5, radius: 0.45, threshold: 0.75, knee: 0.3, names: 1.2 };   // strength at CFG.bloomStrength = 100 %; threshold: linear luminance (glyph cores, not the map)
+const BLOOM = { strength: 0.15, radius: 0.45, threshold: 0.75, knee: 0.3, names: 1.2 };   // strength at CFG.bloomStrength = 100 %; threshold: linear luminance (glyph cores, not the map)
 const PIPE = { on: false, key: null, rp: null, scene: null, names: null, bloom: null };
 function initPipeline() {
   PIPE.scene = THREE.TSL.pass(scene, camera);
