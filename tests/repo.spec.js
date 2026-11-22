@@ -11,10 +11,17 @@ test('every script / stylesheet in index.html carries the same ?v= cache-buster,
   expect(vs.length).toBeGreaterThan(10);
   const v = vs[0][1];
   for (const [f, n] of vs) expect(n, `${f} ?v=`).toBe(v);
-  // three.min.js is vendored and never changes: it is the only local asset allowed without a cache-buster
-  const bare = [...html.matchAll(/(?:src|href)="(js\/[^"?]+\.js|[^"?:]+\.css)"/g)].map(m => m[1]).filter(f => f !== 'js/three.min.js');
+  // three.min.js too: it is rebuilt when three.js is updated (tools/build_three.sh)
+  const bare = [...html.matchAll(/(?:src|href)="(js\/[^"?]+\.js|[^"?:]+\.css)"/g)].map(m => m[1]);
   expect(bare, 'local scripts / styles without ?v=').toEqual([]);
   expect(read('CLAUDE.md'), 'CLAUDE.md "Current: v=N"').toContain('Current: `v=' + v + '`');
+});
+
+test('js/three.min.js is built from the three devDependency (run tools/build_three.sh)', () => {
+  const want = JSON.parse(read('package.json')).devDependencies.three;
+  const m = /^\/\* three\.js r(\d+) \(([\d.]+)\)/.exec(read('js/three.min.js'));
+  expect(m, 'banner written by tools/build_three.sh').toBeTruthy();
+  expect(m[2]).toBe(want);
 });
 
 test('every file referenced by index.html exists and every js/ file is loaded', () => {

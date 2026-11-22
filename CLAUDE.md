@@ -8,9 +8,11 @@ User-facing docs: `README.md` (keep it in sync when behaviour or properties chan
 Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`.
 
 ## Stack & layout
-- Plain JS, no build step, no npm. `'use strict'` classic scripts sharing **global** scope
-  (no modules). three.js **r149** is vendored as `js/three.min.js` — never edit it. Needs WebGL2 (the ground
-  shader uses `uint` arithmetic).
+- Plain JS, no build step for the wallpaper code (npm only for the tests and for building three.js). `'use strict'`
+  classic scripts sharing **global** scope (no modules). three.js **r187** is vendored as `js/three.min.js` — one IIFE
+  defining the global `THREE` (`three/webgpu`: `WebGPURenderer` + node materials; TSL as `THREE.TSL`; the `bloom`
+  add-on), built from the `three` devDependency by `tools/build_three.sh` (three ships ES modules only since r161) —
+  never edit it; see "three.js". Needs WebGPU or WebGL 2 (the ground shader uses `u32` arithmetic).
 - `index.html` loads scripts in dependency order (later files use globals of earlier ones):
   `core → noise → terrain → flight → models → effects → audio → squad → forces → enemies → bosses → allies → camera → main → properties → settings`,
   then an inline script registers the WE audio listener (or starts the browser demo beat).
@@ -19,11 +21,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | File | Contents |
 |---|---|
 | `js/core.js` | utils (`V3`, `rand`, `clamp`, `lerp`, `smoothstep`, `pick`, `wpick`…), `CFG` defaults, `PAL` colours (`syncPalette`), `TEX.glow`, label sprites (`labelMat` cache, `makeLabel`, `setLabel`), `Seg` line-segment builder |
-| `js/noise.js` | periodic value noise + the terrain fields `landField` / `mountField` / `reliefField` / `cityField` — **in JS and in GLSL (`NOISE_GLSL`)**, keep both in sync |
-| `js/terrain.js` | `WORLD` (floating origin, `onShift` handlers), `TERRAIN` (fields at a local position, `isLand` / `isSea`, the ground mesh + shader) |
+| `js/noise.js` | periodic value noise + the terrain fields `landField` / `mountField` / `reliefField` / `cityField` — **in JS and in TSL (`NOISE_TSL`)**, keep both in sync |
+| `js/terrain.js` | `WORLD` (floating origin, `onShift` handlers), `TERRAIN` (fields at a local position, `isLand` / `isSea`, the ground mesh + its TSL node material, `GROUND_K` layer brightness) |
 | `js/flight.js` | `Plane` flight model (`steer`, `maneuver`, `move`, `sync`), `FLOOR` / `CEIL`, `MANEUVERS` + `tryManeuver` |
 | `js/models.js` | schematic glyphs `GLYPHS` (arrow, heavy, awacs, heli; flat markers sam, aagun, tank, radar, hq, ship, carrier) — segment lists, `drawGlyph` (in an attitude) / `drawMarker` (flat on the ground) |
-| `js/effects.js` | `Trail`, `LINES` (per-frame glowing segments of a constant pixel width, one instanced draw call: glyphs, altitude lines, poles, cross-outs, circles, tracers, missile smoke), `GLOW` (points: sparks, flares, missile heads), `BURSTS`, `MISSILES`, `TRACERS` |
+| `js/effects.js` | `Trail`, `LINES` (per-frame glowing segments of a constant pixel width, one instanced draw call: glyphs, altitude lines, poles, cross-outs, circles, tracers, missile smoke), `GLOW` (instanced point sprites: sparks, flares, missile heads), `BURSTS`, `MISSILES`, `TRACERS` |
 | `js/audio.js` | `AUD`, `BANDS`, `onAudio` (beat detection), `updateArming`, `onBeat` → `SQUAD.onBeat` / `ENEMIES.onBeat`, browser `DEMO` beat, `FILE_AUDIO` |
 | `js/squad.js` | `ROUTE` (the virtual lead point), `FORMATIONS`, `SQUAD` (peace formation flying, combat AI in two elements around the battle area `anchor`, shooting, evasion, flares, rejoin) |
 | `js/forces.js` | `Force` — a side's units: pooled slots, spawn / groups on the right terrain, states, crawl / steerAir / fall, `damage`, drawing (glyph, pole / altitude line, label, cross-out), `POLE_H` |
@@ -31,15 +33,16 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 | `js/bosses.js` | boss types (added to `ENEMY_TYPES`) + `drone`, `BOSSES` (timer `t`, `wave` / `spawnType` / escort, `arm` (a boss's own state, from `EnemyForce.spawn`), `wish` for orbit / SOLG flight, specials on the beat, `shells` / `beams` pools, Excalibur's blade) |
 | `js/allies.js` | `ALLY_TYPES`, `ALLY_CALLSIGNS`, `ALLIES` (an `AllyForce`: groups in peace and in combat, fighter AI, allied fire) |
 | `js/camera.js` | `SHOTS`, `CAM` (cinematic director / fixed camera, hero plane in combat kept for `CFG.shotLen` — a new one is an attacking plane near the current focus — focus on a critically damped spring `smoothDamp` / `FOCUS_T`, backs off on screens narrower than `FIT_ASPECT` (phones in portrait), and while the hero runs out away from the lagging focus (`back`, `HERO_FIT` / `HERO_BACK`), targets only move the slow `aux` point; a boss within `BOSS_R` pulls the focus toward it (`BOSS_W`, eased by `bossK`, the hero preferably a plane on it) and, about to go down / burning, onto it (`KILL_W`), the camera backs off to keep it in frame; `right` / `upv` screen axes) |
-| `js/main.js` | WE property listener → `CFG`, `init()`, `step(dt)` (simulation), `draw()` (per-frame visuals + render), `frame()` main loop |
+| `js/main.js` | WE property listener → `CFG`, `init()` (`WebGPURenderer`, `warmShaders`), `PIPE` (render pipeline: bloom, `rolloff`), `step(dt)` (simulation), `draw()` (per-frame visuals + `renderFrame()`), `frame()` main loop (three's animation loop) |
 | `js/properties.js` | **generated** from `project.json` — do not edit by hand |
 | `js/settings.js` | browser-only settings drawer, demo beat, audio-file player (returns early inside WE) |
 | `tools/gen_properties.py` | regenerates `js/properties.js` |
+| `tools/build_three.sh` / `.ps1` | rebuilds `js/three.min.js` from `node_modules/three` with esbuild (`tools/three-entry.js`); `.ps1` runs it in Docker |
 | `tests/`, `playwright.config.js`, `package.json` | automated tests (Playwright Test) — see "Running & testing"; `tools/test.ps1` runs them in Docker, `.github/workflows/tests.yml` in CI |
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=47`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=48`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -61,8 +64,10 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   `SQUAD.contact()`: break toward the contacts (a break turn only when they are behind). The flight adds the **mop-up** (`SQUAD.mopT`, `MOPUP_T`):
   `SQUAD.engaged` (= `AUD.armed || mopT > 0`) is "combat mode" (planes fight instead of flying formation, camera,
   allied fighters), `SQUAD.firing` (= `AUD.fighting || mopT > 0`) is "the flight picks targets and shoots".
-- **Start-up splash** (`#splash`): hidden in `step` at `T > SPLASH_T` (2.5 s), CSS failsafe after 8 s; the test
-  harness hides it unless `boot({ splash: true })`.
+- **Start-up splash** (`#splash`): the frame loop starts only after `renderer.init()` and the shader warm-up
+  (`warmShaders`, `shadersReady`; T stands still until then), so the splash keeps moving while the shaders compile;
+  hidden in `step` at `T > SPLASH_T` (2.5 s), CSS failsafe after 8 s; the test harness hides it unless
+  `boot({ splash: true })`.
 
 ## World, terrain, floating origin
 - The ground is a grid mesh (`GROUND_CELLS`² cells of `GROUND_STEP`) lifted by `heightField` in its vertex shader
@@ -79,9 +84,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   stores positions must register a `shift(dx, dz)`** (see the list in `init()`), or it jumps on the next recentre.
 - **Noise is periodic** (`NOISE_P`): every octave's lattice wraps, so the shader only gets `WORLD.origin mod NOISE_P`
   and stays precise forever. A new octave's cell size must divide `NOISE_P`. The lattice hash is integer
-  arithmetic, bit-identical in JS (`Math.imul`) and GLSL (`uint`) — `terrain.spec.js` compares the shader's land /
-  sea mask (`uDebug = 1`) with `TERRAIN.land` pixel by pixel. Change a field in **both** versions.
-- Derivatives (`fwidth`) only outside branches in the ground shader: every term is computed, then masked.
+  arithmetic, bit-identical in JS (`Math.imul`) and TSL (`u32`; `mod` is floored in both backends) — `terrain.spec.js`
+  (GLSL) and `webgpu.spec.js` (WGSL) compare the shader's land / sea mask (`uDebug = 1`) with `TERRAIN.land` pixel by
+  pixel. Change a field in **both** versions.
+- Derivatives (`fwidth`) only in uniform control flow in the ground shader (WGSL requires it): every term is computed,
+  then masked (`select` / multiply) — no `If` around anything with derivatives.
 
 ## Flight (`js/flight.js`, `js/squad.js`)
 - `Plane`: kinematic — `dir` turns toward the commanded direction at `turnRate × rateMul` (slower until rolled in),
@@ -171,6 +178,36 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   beside it) — chasing the same one they used to merge into one glyph. (Not for enemies: pushing them about makes
   the flight's aim jumpier — more bank wobbles in `steering.spec.js`.)
 
+## three.js (`js/three.min.js`, r187, `WebGPURenderer`, colour management on)
+- **Renderer**: `THREE.WebGPURenderer` — WebGPU where the browser has it (Wallpaper Engine's CEF does), its WebGL 2
+  backend otherwise; `?gl=webgl2` forces the fallback, `GPU.webgpu` tells which one it got. `renderer.init()` is
+  async: `init()` builds the scene synchronously (`ready`), the frame loop (`renderer.setAnimationLoop(frame)`) starts
+  after `warmShaders()` (`shadersReady`). The loop must stay three's animation loop: it advances the node frame (the
+  render pipeline's scene pass renders once per frame id) and resets `renderer.info`.
+- **Shaders are TSL node materials** (`THREE.TSL`), compiled to WGSL or GLSL — never `ShaderMaterial` / GLSL strings
+  (the node renderer ignores them): the ground (`MeshBasicNodeMaterial`, `positionNode` + `colorNode`, `NOISE_TSL`),
+  `LINES` (`MeshBasicNodeMaterial` with a clip-space `vertexNode`, varyings via `varyingProperty`), `GLOW`
+  (`PointsNodeMaterial` on an instanced `Sprite`: WebGPU draws point primitives 1 px wide only; `count` = live dots).
+  Trails (`Line` + `LineBasicMaterial`) and labels (`Sprite` + `SpriteMaterial`) are built-ins three converts.
+  Partial buffer uploads: `clearUpdateRanges()` + `addUpdateRange()` (`updateRange` is gone).
+- **Colour management is on** (three's default): `PAL` colours are linear in the shaders, the output is sRGB. Factors
+  tuned on screen (line alphas, fades, the line core / halo profile, `GROUND_K`) go in as `LIN(a)` = a^2.2, so the
+  look holds; label canvases are `SRGBColorSpace` textures (their core colour is blended in sRGB). Additive overlaps
+  add up in linear light (brighter where lines cross) and roll off to white (`rolloff`).
+- **Render pipeline** (`PIPE`, `main.js`; `renderFrame()` is the only place that renders a frame): with bloom on, a
+  `THREE.RenderPipeline` of `pass(scene, camera)` + `THREE.bloom` (strength `BLOOM.strength` × the `bloomstrength`
+  property, radius, luminance threshold, soft knee) + `rolloff()` (identity below 0.76, a soft shoulder to white —
+  as in carrier-wallpaper); bloom off (property `bloom`): plain `renderer.render`. `updatePipeline()` rebuilds the output
+  node when the property flips (that combination compiles on its next frame).
+- **Shader warm-up** (`warmShaders`): `compileAsync` of the scene (or the scene pass) before the loop starts, hidden
+  objects shown and empty pools given one instance during its synchronous part (node `compile()` walks only visible
+  objects). The first frame compiles only the small post passes (bloom, output quad) — under the splash;
+  `render.spec.js` checks nothing compiles after that, a boss fight included. A new material created at runtime would
+  compile on first use: create materials at build time.
+- **Updating three.js**: bump `three` in `package.json`, `npm install`, `bash tools/build_three.sh` (or the `.ps1`),
+  bump the cache-buster (three.min.js carries it too), run the tests (`repo.spec.js` checks the bundle matches
+  `package.json`), read the three.js migration guide for the versions in between.
+
 ## Performance & memory invariants (the wallpaper never restarts — leaks accumulate for days)
 - **Never create geometry per spawn and drop it.** Units are glyphs drawn into `LINES`; unit slots, bursts, missiles,
   tracers and glow particles are pools allocated once. Anything removed from the scene for good must be disposed.
@@ -179,23 +216,28 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 - Pools are ring buffers or bounded (`LINES.cap`, `GLOW.cap`, `MISSILES.N`, `TRACERS.N`, `ENEMY_TYPES[k].max`);
   spawn rates use time accumulators, never per frame.
 - `LINES` is one instanced draw call (cap 4000 segments); a glyph costs one segment per line. Baseline: ~20–60 draw
-  calls per frame (labels and trails are the rest), geometries plateau (see `soak.spec.js`).
+  calls per frame (labels and trails are the rest) plus 8 for bloom, geometries plateau (see `soak.spec.js`).
 
 ## Running & testing
 - WE: "Open from File" → `project.json` (audio listener + properties come from WE).
 - Browser preview: serve the folder, e.g. `python -m http.server 8765`, open `http://localhost:8765/`.
   The ⚙ SETTINGS drawer mirrors all WE properties (stored in `localStorage`); URL params `?demo=1` (demo beat),
   `?cam=fixed`, `?zoom=150`, `?ts=N` (time scale).
-- **Automated tests** (`tests/`, Playwright Test in headless Chromium + SwiftShader WebGL): run them in Docker —
+- **Automated tests** (`tests/`, Playwright Test in headless Chromium + SwiftShader WebGL / WebGPU): run them in Docker —
   `powershell -ExecutionPolicy Bypass -File tools/test.ps1 [file / -g pattern]` (no local Node; `$env:SEED = N` for
   another seed); CI runs the same image on every push / PR. Run them after a change.
   - The harness (`tests/support/harness.js`) boots the page deterministically: seeded `Math.random` (`SEED`), fixed
     date, no `requestAnimationFrame` (time only advances through `__t.sim(sec)` = `step(0.05)` per tick; `draw: true`
-    also runs `draw()`), `RT()` on simulated time, Wallpaper Engine mode (audio fed by `__t.sim(sec, { audio })`).
+    also runs `draw()`, which the harness wraps to start a frame as three's animation loop would: `renderer.info`
+    reset, node frame advanced), `RT()` on simulated time, Wallpaper Engine mode (audio fed by
+    `__t.sim(sec, { audio })`), the **WebGL 2 backend** (`?gl=webgl2`: headless Chromium loses the WebGPU device when a
+    WebGPU canvas is presented; `GL=webgpu` env / `boot({ gl: 'webgpu' })` leaves it out — `webgpu.spec.js` renders into
+    a RenderTarget only, `__t.sampleRT` / `groundCheckRT`), and `boot()` waits for `shadersReady`.
   - `tests/support/inpage.js` (`window.__t`): `sim` runs `checkInvariants()` after every step (mop-up flags, finite, orthonormal
     planes above the floor, known modes, target ↔ chasers, units on the right terrain, allies never struck, bounded pools, everything
-    within `H.BOUND` of the origin); `forceFight` / `fightOff`; `sample` / `screen` (pixels); `geometries` (leaks);
-    `groundCheck` (shader vs JS terrain); `props` (apply WE properties).
+    within `H.BOUND` of the origin); `forceFight` / `fightOff`; `sample` / `pixels` / `sampleRT` / `screen` (pixels);
+    `geometries` (leaks); `groundCheck` / `groundCheckRT` (shader vs JS terrain); `programs` / `pipelines` (shader
+    compiles after the warm-up) / `drawCalls`; `props` (apply WE properties).
   - **When adding a mode, an enemy state or a pool**, update the sets / bounds in `inpage.js`.
   - `repo.spec.js` checks the cache-buster (all tags equal, matches "Current: `v=N`" here), the load order line
     above, that `js/properties.js` is regenerated and that every property is read in `main.js`.

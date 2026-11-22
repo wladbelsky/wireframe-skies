@@ -6,6 +6,9 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randi = (a, b) => Math.floor(rand(a, b + 1));
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
+/* colour management is on (three's default): colours are linear in the shaders and sRGB on screen. Brightness factors
+   tuned on screen (fades, line alphas) go into the buffers as LIN(a) = a^2.2, so they look as they did */
+const LIN = a => a > 0 ? Math.pow(a, 2.2) : 0;
 const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 function angleWrap(a) { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; }
 function approachAngle(cur, target, maxStep) { const d = angleWrap(target - cur); return cur + clamp(d, -maxStep, maxStep); }
@@ -31,7 +34,9 @@ const CFG = {
   dropLines: true,      // altitude lines down to the ground
   labels: true,         // callsigns / target names
   squad: 'STRIDER',     // the flight's callsign; planes are '<squad> 1..4'
-  speed: 100            // flight speed, %
+  speed: 100,           // flight speed, %
+  bloom: true,          // glow around bright lines (render pipeline, main.js)
+  bloomStrength: 100    // bloom strength, %
 };
 
 /* ===== Palette (THREE.Color, kept in sync with CFG.colors by applyColors) ===== */
@@ -71,12 +76,12 @@ function labelMat(text, color, struck) {
   const font = () => { g.font = LABEL_FACE; g.letterSpacing = '3px'; };
   font(); const w = Math.ceil(g.measureText(text).width) + LABEL_PAD * 2;
   c.width = w; c.height = LABEL_H; font();
-  const core = '#' + new THREE.Color(color).lerp(PAL.white, 0.55).getHexString(), y = LABEL_H / 2 + 1;
+  const L = THREE.LinearSRGBColorSpace, core = '#' + new THREE.Color().setStyle(color, L).lerp(PAL.white, 0.55).getHexString(L), y = LABEL_H / 2 + 1;   // blended on screen (sRGB), not in linear
   g.textBaseline = 'middle'; g.shadowColor = color;
   g.fillStyle = color; g.shadowBlur = 14; g.fillText(text, LABEL_PAD, y); g.shadowBlur = 6; g.fillText(text, LABEL_PAD, y);
   g.shadowBlur = 0; g.fillStyle = core; g.fillText(text, LABEL_PAD, y);
   if (struck) { g.strokeStyle = core; g.shadowColor = color; g.shadowBlur = 8; g.lineWidth = 3; g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y); g.stroke(); }
-  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false });
   m.userData.shared = true; m.userData.aspect = w / LABEL_H; m.userData.key = key; m.userData.refs = 0;
   LABEL_CACHE.set(key, m);
