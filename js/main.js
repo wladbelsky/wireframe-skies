@@ -97,7 +97,7 @@ async function warmShaders() {
 /* ---- render pipeline (RenderPipeline): the scene pass plus bloom (CFG.bloom: glow around what is brighter than the
    threshold — glyph cores, missiles, bursts, names — and a highlight roll-off (rolloff()), so overlapping additive
    lines fade to white instead of clipping). Bloom off: plain renderer.render. ---- */
-const BLOOM = { strength: 0.5, radius: 0.45, threshold: 0.32, knee: 0.3 };   // strength at CFG.bloomStrength = 100 %
+const BLOOM = { strength: 0.5, radius: 0.45, threshold: 0.75, knee: 0.3 };   // strength at CFG.bloomStrength = 100 %; threshold: linear luminance (glyph cores, not the map)
 const PIPE = { on: false, key: null, rp: null, scene: null, bloom: null };
 function initPipeline() {
   PIPE.scene = THREE.TSL.pass(scene, camera);

@@ -102,11 +102,12 @@
   H.sim = (sec, o = {}) => {
     const n = Math.round(sec / DT), violations = [];
     const check = o.check !== false;
+    const from = o.draw && H.drawLast ? n - Math.round(H.drawLast / DT) : 0;   // H.drawLast: draw only the last seconds
     let i = 0;
     for (; i < n; i++) {
       if (o.audio !== undefined) feed(o.audio);
       step(DT); rt += DT;
-      if (o.draw) draw();   // per-frame visuals too (LINES / GLOW fill-up)
+      if (o.draw && i >= from) draw();   // per-frame visuals too (LINES / GLOW fill-up)
       if (check) for (const s of H.checkInvariants()) if (violations.length < 25) violations.push(`T=${T.toFixed(2)} ${s}`);
       if (o.until && o.until()) { i++; break; }
     }

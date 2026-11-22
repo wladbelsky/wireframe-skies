@@ -191,9 +191,11 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   Trails (`Line` + `LineBasicMaterial`) and labels (`Sprite` + `SpriteMaterial`) are built-ins three converts.
   Partial buffer uploads: `clearUpdateRanges()` + `addUpdateRange()` (`updateRange` is gone).
 - **Colour management is on** (three's default): `PAL` colours are linear in the shaders, the output is sRGB. Factors
-  tuned on screen (line alphas, fades, the line core / halo profile, `GROUND_K`) go in as `LIN(a)` = a^2.2, so the
-  look holds; label canvases are `SRGBColorSpace` textures (their core colour is blended in sRGB). Additive overlaps
-  add up in linear light (brighter where lines cross) and roll off to white (`rolloff`).
+  tuned on screen (line alphas, trail fades, the line core / halo profile) go in as `LIN(a)` = a^2.2, so the look
+  holds; the ground composes the map in display space (sRGB palette uniforms, `GROUND_K`, anti-aliased coverage) and
+  converts it to linear once (`sRGBTransferEOTF`) — the r149 map exactly; label canvases are `SRGBColorSpace`
+  textures (their core colour is blended in sRGB). Additive overlaps add up in linear light (brighter where lines
+  cross) and roll off to white (`rolloff`).
 - **Render pipeline** (`PIPE`, `main.js`; `renderFrame()` is the only place that renders a frame): with bloom on, a
   `THREE.RenderPipeline` of `pass(scene, camera)` + `THREE.bloom` (strength `BLOOM.strength` × the `bloomstrength`
   property, radius, luminance threshold, soft knee) + `rolloff()` (identity below 0.76, a soft shoulder to white —
@@ -251,6 +253,9 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
     `test-results/<scene>-<seed>.jpg` (`-g "boss,"` for one scene). `$env:PREVIEW = 'shots'` renders a few scenarios
     (splash, peace with allies, combat, close-ups, a contact appearing, mop-up, retreat, a boss) into `test-results/shots/` —
     the quickest way to look at a visual change.
+- Preview renders: a frame costs ~0.4 s in SwiftShader (bloom included) and `page.screenshot` ~20 s, so
+  `preview.spec.js` grabs the canvas right after `draw()` (`grab`) and the scenario shots draw only the last 2 s of
+  each stretch (`__t.drawLast`).
 - Console checks by hand (browser): stop the loop with `frame = () => {}`, then drive it with `step(0.05)` and `draw()`;
   load `tests/support/inpage.js` with `eval(await (await fetch('/tests/support/inpage.js')).text()); __t.setup()`
   to get `__t`. Don't use `paused = true` for this — `onBeat` ignores beats while paused.

@@ -17,6 +17,19 @@ const { GIFEncoder, quantize, applyPalette } = require('gifenc');
 const GIF = { size: 256, render: 512, frames: 40, fps: 10, colors: 96, seeds: 6, seed: 5 };   // seed: the one in preview.gif ($env:SEED overrides)
 const SHOT = { width: 1280, height: 720, seeds: 6 };
 
+/* draw a frame and save the canvas (copied in the same task as the render, so its buffer is still there): the whole
+   picture is in the canvas (names are sprites in the scene), and page.screenshot takes ~20 s a shot in SwiftShader */
+async function grab(wp, out) {
+  const jpeg = out.endsWith('.jpg');
+  const url = await wp.run((jpeg) => {
+    draw();
+    const src = renderer.domElement, c = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height });
+    const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0);
+    return c.toDataURL(jpeg ? 'image/jpeg' : 'image/png', 0.88);
+  }, jpeg);
+  fs.writeFileSync(out, Buffer.from(url.split(',')[1], 'base64'));
+}
+
 /* the README screenshots (screenshots/<name>.jpg; the first one on top, the rest in a row). Each: seed (the one in
    screenshots/), peace (s before the music, default 30), fight (s of combat; none = a peace shot), then (in the page,
    after that), until(tries) (in the page, every 0.5 s: the moment to take), tries (× 0.5 s). The page functions are
@@ -111,8 +124,7 @@ async function renderScene(wp, page, seed, S, out) {
     for (let i = 0; i < (S.tries || 200) && !(ok = await wp.run(S.until, i)); i++) await wp.sim(0.5, { audio: S.fight !== undefined, check: false });
     expect(ok, `the moment ${JSON.stringify(await wp.run(() => window.__why))}`).toBe(true);
   }
-  await wp.run(() => draw());
-  await page.screenshot({ path: out, type: 'jpeg', quality: 88 });
+  await grab(wp, out);
 }
 
 const PREVIEW_T = Number(process.env.PREVIEW_T || 95);
@@ -148,9 +160,11 @@ for (let seed = 1; seed <= GIF.seeds; seed++) test(`render GIF candidate, seed $
 test('render scenario shots', async ({ wp, page }) => {
   test.skip(process.env.PREVIEW !== 'shots', 'set PREVIEW=shots to render test-results/shots/*.png');
   const dir = path.join(__dirname, '..', 'test-results', 'shots');
-  const shot = async (name, fn, arg) => { await wp.run(fn, arg); await wp.run(() => draw()); await page.screenshot({ path: path.join(dir, name + '.png') }); };
+  const shot = async (name, fn, arg) => { await wp.run(fn, arg); await grab(wp, path.join(dir, name + '.png')); };
   await wp.boot({ splash: true });
   await page.screenshot({ path: path.join(dir, '0-splash.png') });
+  // a frame costs ~0.4 s in SwiftShader: draw only the last 2 s of each stretch (names typing out need draws; trails don't)
+  await wp.run(() => { __t.drawLast = 2; });
   await wp.run(() => { document.getElementById('splash').style.display = 'none'; });
   await wp.run((toCoast) => (0, eval)(toCoast)(), `(${toCoast})`);
   await shot('1-peace', () => { __t.sim(45, { audio: false, draw: true }); });

@@ -7,8 +7,9 @@
    The mesh snaps to whole GROUND_STEP cells of the world, so its vertices always sample the same world points (no
    swimming); TERRAIN.height (JS) is the same function, so units stand and aircraft fly on what is drawn. */
 const GROUND_STEP = 32, GROUND_CELLS = 240;   // vertex spacing (divides NOISE_P), cells per side (7680 units)
-/* brightness of the map's layers (linear: colour management is on, so these are the old display-space values^2.2) */
-const GROUND_K = { minor: 0.38 ** 2.2, major: 0.7 ** 2.2, dots: 0.9 ** 2.2, coast: 0.95 ** 2.2, contour5: 0.6 ** 2.2, contour: 0.3 ** 2.2 };   // city lots: (0.12 + 0.3 h)^2.2
+/* brightness of the map's layers. The map is composed in display space (sRGB, anti-aliased coverage included) and
+   converted to linear once at the end, so it looks exactly as it was tuned on screen (colour management is on) */
+const GROUND_K = { minor: 0.38, major: 0.7, dots: 0.9, coast: 0.95, contour5: 0.6, contour: 0.3 };
 
 /* ---- floating origin: local coordinates stay small however long the wallpaper runs ----
    world = local + WORLD.origin. WORLD.recenter() moves the origin to the flight when it strays > RECENTER units and
@@ -41,11 +42,11 @@ const TERRAIN = {
   mesh: null, uniforms: null,
   build(scene) {
     const { Fn, uniform, float, vec2, vec3, vec4, positionGeometry, positionWorld, modelWorldMatrix, abs, fract, fwidth, max, clamp,
-      smoothstep, step, floor, length, distance, mod, select, pow } = THREE.TSL;
+      smoothstep, step, floor, length, distance, mod, select, sRGBTransferEOTF } = THREE.TSL;
     const N = NOISE_TSL;
     const U = this.uniforms = {
       uOrigin: uniform(new THREE.Vector2()), uCam: uniform(new V3()),
-      uGrid: uniform(PAL.grid), uLand: uniform(PAL.land), uBg: uniform(PAL.bg),
+      uGrid: uniform(new THREE.Color()), uLand: uniform(new THREE.Color()), uBg: uniform(new THREE.Color()),   // sRGB (update)
       uFog: uniform(new THREE.Vector2(700, 2600)), uDebug: uniform(0)
     };
     const mat = new THREE.MeshBasicNodeMaterial({ fog: false });
@@ -83,9 +84,9 @@ const TERRAIN = {
       const blk = mod(ci, 6);
       const lot = step(h, city.mul(0.5)).mul(step(0.5, blk.x)).mul(step(0.5, blk.y)).mul(step(0.18, cf.x)).mul(step(cf.x, float(0.82).sub(h.mul(0.3))))
         .mul(step(0.15, cf.y)).mul(step(cf.y, 0.85));
-      col.addAssign(U.uLand.mul(lot).mul(pow(h.mul(0.3).add(0.12), 2.2)).mul(float(1).sub(smoothstep(0.15, 0.5, px.div(8)))));
+      col.addAssign(U.uLand.mul(lot).mul(h.mul(0.3).add(0.12)).mul(float(1).sub(smoothstep(0.15, 0.5, px.div(8)))));
       const fog = float(1).sub(smoothstep(U.uFog.x, U.uFog.y, distance(positionWorld, U.uCam)));   // per pixel: the mesh is huge
-      const out = U.uBg.add(col.mul(fog));
+      const out = sRGBTransferEOTF(vec4(U.uBg.add(col.mul(fog)), 1)).rgb;   // display space → linear
       const dbg1 = vec3(select(land.greaterThan(0), 1, 0));
       return select(U.uDebug.lessThan(0.5), out, select(U.uDebug.lessThan(1.5), dbg1, vec3(gMin, px, fog)));
     })();
@@ -99,6 +100,8 @@ const TERRAIN = {
     this.mesh.position.set(Math.round((focus.x + ox) / S) * S - ox, 0, Math.round((focus.z + oz) / S) * S - oz);
     this.uniforms.uOrigin.value.set(wrapP(WORLD.origin.x), wrapP(WORLD.origin.z));
     this.uniforms.uCam.value.copy(cam.position);
+    // the palette in display space (see GROUND_K)
+    this.uniforms.uGrid.value.copy(PAL.grid).convertLinearToSRGB(); this.uniforms.uLand.value.copy(PAL.land).convertLinearToSRGB(); this.uniforms.uBg.value.copy(PAL.bg).convertLinearToSRGB();
     // fogged out before the mesh ends; the ground around the focus stays clear however far the camera is (zoom, phones)
     const dF = cam.position.distanceTo(focus), far = Math.min(GROUND_STEP * GROUND_CELLS * 0.45, Math.max(1800, cam.position.y * 4 + 1200, dF * 2.5));
     this.uniforms.uFog.value.set(Math.min(far * 0.8, Math.max(far * 0.3, dF * 1.15)), far);
