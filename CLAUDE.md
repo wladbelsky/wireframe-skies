@@ -42,7 +42,7 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
 
 ## Rules / conventions
 - **After changing any JS/CSS file, bump the cache-buster** `?v=N` on all `<script>`/`<link>` tags in
-  `index.html` (WE's CEF caches aggressively). Current: `v=48`.
+  `index.html` (WE's CEF caches aggressively). Current: `v=49`.
 - **New WE property**: add it to `project.json`, read it in `applyUserProperties` (`main.js`) into `CFG`,
   then run `python tools/gen_properties.py`. Property `order` decides the browser-drawer group
   (0–9 camera, 10–19 audio & combat, 20–29 look, 30–39 flight). `repo.spec.js` checks every property is read.
@@ -194,7 +194,8 @@ Sister project and the reference for conventions: `wladbelsky/carrier-wallpaper`
   tuned on screen (line alphas, trail fades, the line core / halo profile) go in as `LIN(a)` = a^2.2, so the look
   holds; the ground composes the map in display space (sRGB palette uniforms, `GROUND_K`, anti-aliased coverage) and
   converts it to linear once (`sRGBTransferEOTF`) — the r149 map exactly; label canvases are `SRGBColorSpace`
-  textures (their core colour is blended in sRGB). Additive overlaps add up in linear light (brighter where lines
+  textures (their core colour is blended in sRGB) with crisp text and **no baked glow** (no `shadowBlur`): bloom
+  makes the glow, so names are clean with it off and don't get a double halo with it on. Additive overlaps add up in linear light (brighter where lines
   cross) and roll off to white (`rolloff`).
 - **Render pipeline** (`PIPE`, `main.js`; `renderFrame()` is the only place that renders a frame): with bloom on, a
   `THREE.RenderPipeline` of `pass(scene, camera)` + `THREE.bloom` (strength `BLOOM.strength` × the `bloomstrength`

@@ -64,7 +64,9 @@ const TEX = {
 /* ===== Text labels =====
    One texture per (text, colour, struck), shared through LABEL_CACHE and reference-counted by setLabel: when no sprite
    shows a label any more (a colour or the squadron name changed) its texture is freed, so edits never pile up. Sprites with sizeAttenuation off keep a constant size on screen.
-   The look of the replay: wide-spaced, light, a near-white core with a glow in the side's colour. */
+   The look of the replay: wide-spaced, light, a near-white core outlined in the side's colour — crisp: the glow
+   around it comes from bloom (property bloom, main.js PIPE), never baked into the texture (it would stay with bloom
+   off and pile up with it on). */
 const LABEL_FONT = 26, LABEL_H = 44, LABEL_PAD = 12;
 const LABEL_FACE = `400 ${LABEL_FONT}px "Bahnschrift", "Eurostile", "DIN Alternate", "Segoe UI", Arial, sans-serif`;
 const LABEL_CACHE = new Map();
@@ -77,10 +79,13 @@ function labelMat(text, color, struck) {
   font(); const w = Math.ceil(g.measureText(text).width) + LABEL_PAD * 2;
   c.width = w; c.height = LABEL_H; font();
   const L = THREE.LinearSRGBColorSpace, core = '#' + new THREE.Color().setStyle(color, L).lerp(PAL.white, 0.55).getHexString(L), y = LABEL_H / 2 + 1;   // blended on screen (sRGB), not in linear
-  g.textBaseline = 'middle'; g.shadowColor = color;
-  g.fillStyle = color; g.shadowBlur = 14; g.fillText(text, LABEL_PAD, y); g.shadowBlur = 6; g.fillText(text, LABEL_PAD, y);
-  g.shadowBlur = 0; g.fillStyle = core; g.fillText(text, LABEL_PAD, y);
-  if (struck) { g.strokeStyle = core; g.shadowColor = color; g.shadowBlur = 8; g.lineWidth = 3; g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y); g.stroke(); }
+  g.textBaseline = 'middle'; g.lineJoin = g.lineCap = 'round';
+  g.strokeStyle = color; g.lineWidth = 2.5; g.strokeText(text, LABEL_PAD, y);   // the side's colour around the core
+  g.fillStyle = core; g.fillText(text, LABEL_PAD, y);
+  if (struck) {
+    g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y);
+    g.strokeStyle = color; g.lineWidth = 5; g.stroke(); g.strokeStyle = core; g.lineWidth = 2.5; g.stroke();
+  }
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false });
   m.userData.shared = true; m.userData.aspect = w / LABEL_H; m.userData.key = key; m.userData.refs = 0;
@@ -88,7 +93,7 @@ function labelMat(text, color, struck) {
   return m;
 }
 /* label sprite: bottom-left corner at the anchor; setLabel swaps its material */
-const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the glow included)
+const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the padding included)
 /* label size factor: names are a share of the screen height, so on screens narrower than square (phones in
    portrait) they shrink with the aspect (down to LABEL_MIN_K), or they would be as wide as the screen */
 const LABEL_MIN_K = 0.55, LABEL_SPRITES = [];   // every label sprite ever made (pooled with its unit: bounded)
