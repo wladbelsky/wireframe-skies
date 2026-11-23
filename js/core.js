@@ -64,9 +64,10 @@ const TEX = {
 /* ===== Text labels =====
    One texture per (text, colour, struck), shared through LABEL_CACHE and reference-counted by setLabel: when no sprite
    shows a label any more (a colour or the squadron name changed) its texture is freed, so edits never pile up. Sprites with sizeAttenuation off keep a constant size on screen.
-   The look of the replay: wide-spaced, light, a near-white core in the side's tint — crisp: the glow around it comes
-   from bloom (property bloom, main.js PIPE), never baked into the texture (it would stay with bloom off and pile up
-   with it on). */
+   The look of the replay: wide-spaced, light, a near-white core in the side's tint over a tight glow in the side's
+   colour, baked into the texture (as before r187: clear letters with a distinct halo, not bloom's wide smudge). The
+   texture is blended in linear light, which would make the halo's faint tail look much wider: its alpha goes in as
+   LIN(a), so over the dark map it looks as it did when blended on screen. */
 const LABEL_FONT = 26, LABEL_H = 44, LABEL_PAD = 12;
 const LABEL_FACE = `400 ${LABEL_FONT}px "Bahnschrift", "Eurostile", "DIN Alternate", "Segoe UI", Arial, sans-serif`;
 const LABEL_CACHE = new Map();
@@ -74,13 +75,19 @@ function labelMat(text, color, struck) {
   const key = text + '|' + color + '|' + (struck ? 1 : 0);
   let m = LABEL_CACHE.get(key);
   if (m) return m;
-  const c = document.createElement('canvas'), g = c.getContext('2d');
+  const c = document.createElement('canvas'), g = c.getContext('2d', { willReadFrequently: true });   // read back once (the halo)
   const font = () => { g.font = LABEL_FACE; g.letterSpacing = '3px'; };
   font(); const w = Math.ceil(g.measureText(text).width) + LABEL_PAD * 2;
   c.width = w; c.height = LABEL_H; font();
   const L = THREE.LinearSRGBColorSpace, core = '#' + new THREE.Color().setStyle(color, L).lerp(PAL.white, 0.55).getHexString(L), y = LABEL_H / 2 + 1;   // blended on screen (sRGB), not in linear
-  g.textBaseline = 'middle'; g.fillStyle = core; g.fillText(text, LABEL_PAD, y);
-  if (struck) { g.strokeStyle = core; g.lineWidth = 3; g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y); g.stroke(); }
+  g.textBaseline = 'middle'; g.shadowColor = color; g.fillStyle = color;
+  g.shadowBlur = 14; g.fillText(text, LABEL_PAD, y); g.shadowBlur = 6; g.fillText(text, LABEL_PAD, y);
+  if (struck) { g.strokeStyle = color; g.shadowBlur = 8; g.lineWidth = 3; g.beginPath(); g.moveTo(LABEL_PAD - 6, y); g.lineTo(w - LABEL_PAD + 6, y); g.stroke(); }
+  const im = g.getImageData(0, 0, w, LABEL_H), d = im.data;   // the halo's alpha into linear light (the letters are opaque)
+  for (let i = 3; i < d.length; i += 4) d[i] = Math.round(LIN(d[i] / 255) * 255);
+  g.putImageData(im, 0, 0);
+  g.shadowBlur = 0; g.fillStyle = core; g.fillText(text, LABEL_PAD, y);
+  if (struck) { g.strokeStyle = core; g.stroke(); }
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false });
   m.userData.shared = true; m.userData.aspect = w / LABEL_H; m.userData.key = key; m.userData.refs = 0;
@@ -88,13 +95,12 @@ function labelMat(text, color, struck) {
   return m;
 }
 /* label sprite: bottom-left corner at the anchor; setLabel swaps its material */
-const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the padding included)
+const LABEL_SCALE = 0.027;   // height at distance 1 (camera fov 40°: ≈ 3.7 % of the screen height, the glow included)
 /* label size factor: names are a share of the screen height, so on screens narrower than square (phones in
    portrait) they shrink with the aspect (down to LABEL_MIN_K), or they would be as wide as the screen */
 const LABEL_MIN_K = 0.55, LABEL_SPRITES = [];   // every label sprite ever made (pooled with its unit: bounded)
 let LABEL_K = 1;
-const LABEL_LAYER = 1;   // names are on layer 1 too: the bloom source pass of the names (main.js PIPE.names)
-function makeLabel() { const s = new THREE.Sprite(); s.center.set(0.02, 0.3); s.renderOrder = 10; s.layers.enable(LABEL_LAYER); LABEL_SPRITES.push(s); return s; }
+function makeLabel() { const s = new THREE.Sprite(); s.center.set(0.02, 0.3); s.renderOrder = 10; LABEL_SPRITES.push(s); return s; }
 function sizeLabel(s) { const a = s.material.userData.aspect; if (a) s.scale.set(LABEL_SCALE * LABEL_K * a, LABEL_SCALE * LABEL_K, 1); }
 function setLabelScale(aspect) { LABEL_K = clamp(aspect, LABEL_MIN_K, 1); for (const s of LABEL_SPRITES) sizeLabel(s); }
 function setLabel(s, text, color, struck) {
