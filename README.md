@@ -43,6 +43,8 @@ up to their name — green for the flight, blue for allies, red for the enemy. N
   rejoins its formation.
 - A short notification sound never starts a fight: the music has to play for 4 s.
 
+Renders with three.js (r187) on WebGPU where available (Wallpaper Engine has it), WebGL 2 otherwise.
+
 ## Install
 
 Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3815966692), or in Wallpaper Engine
@@ -65,6 +67,7 @@ Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedet
 | Flight / enemy / ally / grid & sea / coast, contour & city colour | the palette |
 | Trail length, s | 0 = no trails |
 | Altitude lines, Names | the vertical lines to the ground and the callsigns / target names |
+| Bloom, Bloom strength, % | a soft glow around glyphs, missiles, bursts and names (off: crisp lines only) |
 | Squadron callsign | the planes are called `<callsign> 1…4` (letters, digits, spaces, up to 14 characters) |
 | Flight speed, % | how fast everything moves |
 
@@ -73,7 +76,7 @@ Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedet
 Serve the folder (e.g. `python -m http.server 8765`) and open `http://localhost:8765/`.
 The **⚙ SETTINGS** drawer mirrors all Wallpaper Engine properties and adds a demo beat and an audio-file player
 (the file is analysed the same way Wallpaper Engine analyses system audio). URL parameters: `?demo=1` (demo beat on),
-`?cam=fixed`, `?zoom=150`, `?ts=4` (time ×4). On a phone in portrait the camera pulls back so the flight stays in frame.
+`?cam=fixed`, `?zoom=150`, `?ts=4` (time ×4), `?gl=webgl2` (WebGL 2 instead of WebGPU). On a phone in portrait the camera pulls back so the flight stays in frame.
 
 ## Tests
 
@@ -85,7 +88,8 @@ powershell -ExecutionPolicy Bypass -File tools/test.ps1
 
 They boot the wallpaper with a seeded random generator and drive the simulation step by step: peace and combat
 behaviour, invariants after every step (nobody hits the ground, enemies stand on the right terrain, bounded pools),
-the ground shader against the JavaScript terrain, rendering, memory leaks over a 40-minute soak. GitHub Actions runs
+the ground shader against the JavaScript terrain (WebGL 2 and WebGPU), rendering, bloom, shader warm-up, memory leaks
+over a 40-minute soak. GitHub Actions runs
 the same suite on every push. Developer notes: [CLAUDE.md](CLAUDE.md).
 
 ---

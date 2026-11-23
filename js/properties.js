@@ -151,6 +151,21 @@ const WE_PROPERTIES = {
   "type": "bool",
   "value": true
  },
+ "bloom": {
+  "order": 28,
+  "text": "Bloom (glow around bright lines)",
+  "type": "bool",
+  "value": true
+ },
+ "bloomstrength": {
+  "order": 29,
+  "text": "Bloom strength, %",
+  "type": "slider",
+  "min": 0,
+  "max": 200,
+  "value": 100,
+  "condition": "bloom.value == true"
+ },
  "squadname": {
   "order": 30,
   "text": "Squadron callsign",

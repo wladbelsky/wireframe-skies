@@ -1,10 +1,10 @@
 // Start-up: the page boots cleanly in Wallpaper Engine mode and in a plain browser
 const { test, expect } = require('./support/harness');
 
-test('boots in Wallpaper Engine mode with WebGL2 and a four-ship flight', async ({ wp }) => {
+test('boots in Wallpaper Engine mode (WebGL 2 backend in the suite) and a four-ship flight', async ({ wp }) => {
   await wp.boot();
   const info = await wp.run(() => ({
-    webgl2: renderer.capabilities.isWebGL2,
+    webgl2: !!renderer.backend.isWebGLBackend && !!renderer.backend.gl && renderer.backend.gl instanceof WebGL2RenderingContext,
     planes: SQUAD.planes.length,
     labels: SQUAD.planes.map(p => [...LABEL_CACHE.entries()].find(([, m]) => m === p.label.material)[0].split('|')[0]),
     drawer: !!document.getElementById('cfg')

@@ -4,7 +4,11 @@
    - requestAnimationFrame never fires: the simulation only advances through __t.sim() (step(0.05) per tick);
    - Wallpaper Engine mode by default (wallpaperRegisterAudioListener is defined: no settings drawer, no demo beat;
      audio is fed by __t.sim({ audio })); { we: false } boots it like a normal browser;
-   - localStorage is cleared on the first load of a page (a reload keeps it).
+   - localStorage is cleared on the first load of a page (a reload keeps it);
+   - the WebGL 2 backend of WebGPURenderer (?gl=webgl2): headless Chromium loses the WebGPU device as soon as a WebGPU
+     canvas is presented, so the suite runs on the fallback; GL=webgpu (env) or boot({ gl: 'webgpu' }) leaves it out
+     (WebGPU tests render into a RenderTarget only, see webgpu.spec.js);
+   - boot() waits for the shader warm-up (shadersReady), so program counts are stable.
    Every test using `wp` fails if the page logged an error or threw. */
 const base = require('@playwright/test');
 const path = require('path');
@@ -12,6 +16,7 @@ const path = require('path');
 const SEED = Number(process.env.SEED || 1);
 if (!Number.isInteger(SEED)) throw new Error(`SEED must be an integer, got '${process.env.SEED}'`);
 const INPAGE = path.join(__dirname, 'inpage.js');
+const GL = process.env.GL === 'webgpu' ? 'webgpu' : 'webgl2';
 
 function initScript({ seed, we }) {
   let s = seed >>> 0;                                            // mulberry32
@@ -27,21 +32,24 @@ function initScript({ seed, we }) {
 class Wallpaper {
   constructor(page, errors) { this.page = page; this.errors = errors; this.installed = false; }
   /* load the wallpaper; query e.g. '?cam=fixed'; splash: keep the start-up splash (hidden by default) */
-  async boot({ seed = SEED, we = true, query = '', time = '2026-06-21T12:00:00Z', splash = false } = {}) {
+  async boot({ seed = SEED, we = true, query = '', time = '2026-06-21T12:00:00Z', splash = false, gl = GL } = {}) {
     if (!this.installed) {
       await this.page.clock.setFixedTime(new Date(time));
       await this.page.addInitScript(initScript, { seed, we });
       await this.page.addInitScript({ path: INPAGE });
       this.installed = true;
     }
+    if (gl === 'webgl2' && !/[?&]gl=/.test(query)) query += (query ? '&' : '?') + 'gl=webgl2';
     await this.page.goto('/index.html' + query);
     const ok = await this.page.evaluate(() => typeof ready !== 'undefined' && ready && SQUAD.planes.length === 4);
     if (!ok) throw new Error('wallpaper did not initialise');
+    await this.page.waitForFunction(() => shadersReady, null, { timeout: 60000, polling: 50 });
     await this.page.evaluate((splash) => { __t.setup(); const s = document.getElementById('splash'); if (s && !splash) s.style.display = 'none'; }, splash);
     return this;
   }
   async reload() {
     await this.page.reload();
+    await this.page.waitForFunction(() => shadersReady, null, { timeout: 60000, polling: 50 });
     await this.page.evaluate(() => __t.setup());
   }
   /* run fn(arg) in the page */
@@ -73,4 +81,4 @@ const test = base.test.extend({
   }
 });
 
-module.exports = { test, expect: base.expect, SEED };
+module.exports = { test, expect: base.expect, SEED, GL };

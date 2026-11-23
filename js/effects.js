@@ -20,7 +20,7 @@ class Trail {
   recolor(color, gain) {
     if (color) this.color.copy(color); if (gain != null) this.gain = gain;
     const m = this.max; this.len = m;
-    for (let i = 0; i < m; i++) { const f = Math.pow(1 - i / m, 1.6) * this.gain; this.col[i * 3] = this.color.r * f; this.col[i * 3 + 1] = this.color.g * f; this.col[i * 3 + 2] = this.color.b * f; }
+    for (let i = 0; i < m; i++) { const f = LIN(Math.pow(1 - i / m, 1.6) * this.gain); this.col[i * 3] = this.color.r * f; this.col[i * 3 + 1] = this.color.g * f; this.col[i * 3 + 2] = this.color.b * f; }
     this.line.geometry.attributes.color.needsUpdate = true;
   }
   reset(p) { this.n = 1; this.acc = 0; this.pos[0] = p.x; this.pos[1] = p.y; this.pos[2] = p.z; this.sync(); }
@@ -34,7 +34,7 @@ class Trail {
     this.sync();
   }
   sync() {   // upload only the drawn points
-    const g = this.line.geometry, a = g.attributes.position; a.needsUpdate = true; a.updateRange.offset = 0; a.updateRange.count = Math.max(1, this.n) * 3; g.setDrawRange(0, this.n);
+    const g = this.line.geometry, a = g.attributes.position; a.needsUpdate = true; a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, this.n) * 3); g.setDrawRange(0, this.n);
   }
   shift(dx, dz) { for (let i = 0; i < TRAIL_MAX * 3; i += 3) { this.pos[i] -= dx; this.pos[i + 2] -= dz; } }
 }
@@ -43,6 +43,7 @@ class Trail {
    One instanced draw call: every segment is a screen-space quad of a constant pixel width with a soft halo, so lines
    look the same at any distance (like the replay screen). Endpoints behind the camera are clipped to the near plane. */
 const LINE_W = 1.6;   // default core width, CSS px
+const LINE_HALO = 0.45;   // halo brightness at the core's edge (display space)
 const LINES = {
   cap: 4000, n: 0, mesh: null,
   build(scene) {
@@ -52,37 +53,35 @@ const LINES = {
     const at = (k, n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(N * n), n); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(k, a); return a.array; };
     this.A = at('iA', 3); this.B = at('iB', 3); this.CA = at('iCA', 3); this.CB = at('iCB', 3); this.W = at('iW', 1);
     g.instanceCount = 0;
-    this.uniforms = { uRes: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
-    const m = new THREE.ShaderMaterial({ uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
-      vertexShader: `
-        attribute vec3 iA, iB, iCA, iCB; attribute float iW; uniform vec2 uRes; uniform float uPR;
-        varying vec3 vC; varying float vS, vH, vR;
-        void main(){
-          mat4 pv = projectionMatrix * viewMatrix;
-          vec4 a = pv * vec4(iA, 1.0), b = pv * vec4(iB, 1.0);
-          const float NW = 0.05;
-          if (a.w < NW && b.w < NW) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-          if (a.w < NW) a = mix(a, b, (NW - a.w) / (b.w - a.w));
-          if (b.w < NW) b = mix(b, a, (NW - b.w) / (a.w - b.w));
-          vec2 sa = a.xy / a.w * uRes, sb = b.xy / b.w * uRes, d = sb - sa;
-          d = length(d) > 1e-4 ? normalize(d) : vec2(1.0, 0.0);
-          vec2 n = vec2(-d.y, d.x);
-          float hw = iW * uPR * 0.5, R = hw + (3.0 + iW * 2.0) * uPR;          // core half width + halo, device px
-          vec4 p = mix(a, b, position.x);
-          vec2 off = n * position.y * R + d * (position.x * 2.0 - 1.0) * hw;
-          p.xy += off / uRes * p.w;
-          vC = mix(iCA, iCB, position.x); vS = position.y * R; vH = hw; vR = R;
-          gl_Position = p;
-        }`,
-      fragmentShader: `
-        varying vec3 vC; varying float vS, vH, vR;
-        void main(){
-          float d = abs(vS);
-          float core = 1.0 - smoothstep(vH - 0.6, vH + 0.6, d);
-          float halo = 1.0 - smoothstep(vH, vR, d); halo *= halo * 0.45;
-          gl_FragColor = vec4(vC * (core + halo), 1.0);
-        }`
-    });
+    const { Fn, If, attribute, uniform, float, vec2, vec3, vec4, mix, select, length, normalize, abs, smoothstep, pow,
+      positionGeometry, cameraProjectionMatrix, cameraViewMatrix, varyingProperty } = THREE.TSL;
+    const U = this.uniforms = { uRes: uniform(new THREE.Vector2(1, 1)), uPR: uniform(1) };
+    const iA = attribute('iA', 'vec3'), iB = attribute('iB', 'vec3'), iCA = attribute('iCA', 'vec3'), iCB = attribute('iCB', 'vec3'), iW = attribute('iW', 'float');
+    const vC = varyingProperty('vec3', 'vC'), vS = varyingProperty('float', 'vS'), vH = varyingProperty('float', 'vH'), vR = varyingProperty('float', 'vR');
+    const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false });
+    // clip space: both ends projected, the one behind the camera clipped to the near plane, then a quad of R device px
+    // to each side of the projected segment (core half width + halo)
+    m.vertexNode = Fn(() => {
+      const pv = cameraProjectionMatrix.mul(cameraViewMatrix), NW = 0.05;
+      const a = pv.mul(vec4(iA, 1)).toVar(), b = pv.mul(vec4(iB, 1)).toVar();
+      const cull = a.w.lessThan(NW).and(b.w.lessThan(NW));
+      If(a.w.lessThan(NW).and(cull.not()), () => { a.assign(mix(a, b, float(NW).sub(a.w).div(b.w.sub(a.w)))); });
+      If(b.w.lessThan(NW).and(cull.not()), () => { b.assign(mix(b, a, float(NW).sub(b.w).div(a.w.sub(b.w)))); });
+      const sa = a.xy.div(a.w).mul(U.uRes), sb = b.xy.div(b.w).mul(U.uRes), d0 = sb.sub(sa);
+      const d = select(length(d0).greaterThan(1e-4), normalize(d0), vec2(1, 0)).toVar();
+      const n = vec2(d.y.negate(), d.x);
+      const hw = iW.mul(U.uPR).mul(0.5).toVar(), R = hw.add(iW.mul(2).add(3).mul(U.uPR)).toVar();
+      const p = mix(a, b, positionGeometry.x).toVar();
+      const off = n.mul(positionGeometry.y).mul(R).add(d.mul(positionGeometry.x.mul(2).sub(1)).mul(hw));
+      vC.assign(mix(iCA, iCB, positionGeometry.x)); vS.assign(positionGeometry.y.mul(R)); vH.assign(hw); vR.assign(R);
+      return select(cull, vec4(2, 2, 2, 1), vec4(p.xy.add(off.div(U.uRes).mul(p.w)), p.zw));
+    })();
+    // the core (anti-aliased) and a soft halo; the profile was tuned in display space, so it is taken ^2.2 (linear)
+    m.colorNode = Fn(() => {
+      const d = abs(vS), core = float(1).sub(smoothstep(vH.sub(0.6), vH.add(0.6), d));
+      const h = float(1).sub(smoothstep(vH, vR, d)), halo = h.mul(h).mul(LINE_HALO);
+      return vec4(vC.mul(pow(core.add(halo), 2.2)), 1);   // up to 1.45^2.2 at the centre: cores go white, as before
+    })();
     this.mesh = new THREE.Mesh(g, m); this.mesh.frustumCulled = false; this.mesh.renderOrder = 2; scene.add(this.mesh);
   },
   begin() { this.n = 0; },
@@ -91,6 +90,7 @@ const LINES = {
     if (this.n >= this.cap) return;
     const i = this.n++, j = i * 3; if (a1 == null) a1 = a0;
     this.A[j] = ax; this.A[j + 1] = ay; this.A[j + 2] = az; this.B[j] = bx; this.B[j + 1] = by; this.B[j + 2] = bz;
+    a0 = LIN(a0); a1 = LIN(a1);
     this.CA[j] = c.r * a0; this.CA[j + 1] = c.g * a0; this.CA[j + 2] = c.b * a0; this.CB[j] = c.r * a1; this.CB[j + 1] = c.g * a1; this.CB[j + 2] = c.b * a1;
     this.W[i] = w || LINE_W;
   },
@@ -120,7 +120,7 @@ const LINES = {
   end(width, height, pr) {
     const g = this.mesh.geometry; g.instanceCount = this.n;
     this.uniforms.uRes.value.set(width / 2, height / 2); this.uniforms.uPR.value = pr;
-    for (const k of ['iA', 'iB', 'iCA', 'iCB', 'iW']) { const at = g.attributes[k]; at.needsUpdate = true; at.updateRange.offset = 0; at.updateRange.count = Math.max(1, this.n) * at.itemSize; }
+    for (const k of ['iA', 'iB', 'iCA', 'iCB', 'iW']) { const at = g.attributes[k]; at.needsUpdate = true; at.clearUpdateRanges(); at.addUpdateRange(0, Math.max(1, this.n) * at.itemSize); }
   }
 };
 const _cx = new V3(), _cz = new V3();
@@ -129,17 +129,18 @@ const _cx = new V3(), _cz = new V3();
 const GLOW = {
   cap: 900, n: 0, parts: [], pi: 0, PARTS: 500,
   build(scene) {
-    this.pos = new Float32Array(this.cap * 3); this.col = new Float32Array(this.cap * 3); this.size = new Float32Array(this.cap);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('size', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
-    this.uniforms = { uTex: { value: TEX.glow }, uScale: { value: 500 } };
-    const m = new THREE.ShaderMaterial({ uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
-      vertexShader: `attribute float size; attribute vec3 color; varying vec3 vC; uniform float uScale;
-        void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vC = color; gl_PointSize = clamp(size * uScale / -mv.z, 1.5, 64.0); gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `uniform sampler2D uTex; varying vec3 vC; void main(){ gl_FragColor = vec4(vC * texture2D(uTex, gl_PointCoord).r, 1.0); }` });
-    this.mesh = new THREE.Points(g, m); this.mesh.frustumCulled = false; this.mesh.renderOrder = 3; scene.add(this.mesh);
+    // instanced point sprites (WebGPU draws point primitives 1 px wide only): one quad per dot, sized in pixels by its
+    // distance like the old gl_PointSize (clamped 1.5..64 device px)
+    const attr = n => new THREE.InstancedBufferAttribute(new Float32Array(this.cap * n), n).setUsage(THREE.DynamicDrawUsage);
+    this.aPos = attr(3); this.aCol = attr(3); this.aSize = attr(1); this.attrs = [this.aPos, this.aCol, this.aSize];
+    this.pos = this.aPos.array; this.col = this.aCol.array; this.size = this.aSize.array;
+    const { instancedBufferAttribute, texture, uniform, vec4, clamp, positionView, screenDPR } = THREE.TSL;
+    this.uniforms = { uScale: uniform(500) };
+    const m = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false });
+    m.positionNode = instancedBufferAttribute(this.aPos);
+    m.sizeNode = clamp(instancedBufferAttribute(this.aSize).mul(this.uniforms.uScale).div(positionView.z.negate()), 1.5, 64).div(screenDPR);
+    m.colorNode = vec4(instancedBufferAttribute(this.aCol).mul(texture(TEX.glow).r), 1);
+    this.mesh = new THREE.Sprite(m); this.mesh.count = 0; this.mesh.visible = false; this.mesh.frustumCulled = false; this.mesh.renderOrder = 3; scene.add(this.mesh);
     for (let i = 0; i < this.PARTS; i++) this.parts.push({ life: 0, age: 1, p: new V3(), v: new V3(), c: new THREE.Color(), s: 1, drag: 0, grav: 0 });
   },
   /* a particle (ring buffer: the oldest is overwritten) */
@@ -152,7 +153,7 @@ const GLOW = {
   dot(p, s, c, a) {
     if (this.n >= this.cap) return;
     const i = this.n++; this.pos[i * 3] = p.x; this.pos[i * 3 + 1] = p.y; this.pos[i * 3 + 2] = p.z;
-    this.col[i * 3] = c.r * a; this.col[i * 3 + 1] = c.g * a; this.col[i * 3 + 2] = c.b * a; this.size[i] = s;
+    a = LIN(a); this.col[i * 3] = c.r * a; this.col[i * 3 + 1] = c.g * a; this.col[i * 3 + 2] = c.b * a; this.size[i] = s;
   },
   update(dt) {
     for (const q of this.parts) {
@@ -163,8 +164,8 @@ const GLOW = {
   drawParts() { for (const q of this.parts) if (q.age < q.life) this.dot(q.p, q.s, q.c, q.a * (1 - q.age / q.life)); },
   end(camera, height) {
     this.uniforms.uScale.value = height / (2 * Math.tan(camera.fov * DEG / 2));
-    const g = this.mesh.geometry; g.setDrawRange(0, this.n);
-    g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; g.attributes.size.needsUpdate = true;
+    this.mesh.count = this.n; this.mesh.visible = this.n > 0;
+    if (this.n) for (const a of this.attrs) { a.needsUpdate = true; a.clearUpdateRanges(); a.addUpdateRange(0, this.n * a.itemSize); }   // upload only the live part
   },
   shift(dx, dz) { for (const q of this.parts) { q.p.x -= dx; q.p.z -= dz; } }
 };

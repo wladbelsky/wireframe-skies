@@ -11,7 +11,7 @@ test('40 minutes of fights and lulls: no leaks, bounded pools and draw calls', a
     for (let cycle = 0; cycle < 8; cycle++) {
       for (let k = 0; k < 18; k++) {               // 3 min of music, 2 min of silence, rendering every 10 s
         v.push(...__t.sim(10, { audio: k < 18 * 0.6 }).violations);
-        draw(); maxCalls = Math.max(maxCalls, renderer.info.render.calls); maxLines = Math.max(maxLines, LINES.n); maxGlow = Math.max(maxGlow, GLOW.n);
+        draw(); maxCalls = Math.max(maxCalls, __t.drawCalls()); maxLines = Math.max(maxLines, LINES.n); maxGlow = Math.max(maxGlow, GLOW.n);
       }
       samples.push(__t.geometries());
     }

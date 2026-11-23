@@ -16,8 +16,9 @@ module.exports = defineConfig({
     locale: 'en-GB',
     trace: 'retain-on-failure',
     browserName: 'chromium',
-    // WebGL without a GPU: SwiftShader
-    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }
+    // WebGL and WebGPU without a GPU: SwiftShader (the suite runs on the WebGL 2 fallback; tests/webgpu.spec.js on WebGPU)
+    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+      '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'] }
   },
   webServer: {
     command: 'node tests/support/serve.js 8765',

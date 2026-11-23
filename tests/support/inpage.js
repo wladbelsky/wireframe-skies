@@ -13,10 +13,20 @@
   /* after boot: real time runs on simulated time */
   H.setup = () => {
     window.RT = () => rt;
+    if (!renderer.backend.__counted) {                          // count render pipelines (shader compiles) from here on
+      const be = renderer.backend, cp = be.createRenderPipeline; be.__counted = true; H._pipes = 0;
+      be.createRenderPipeline = function () { H._pipes++; return cp.apply(this, arguments); };
+    }
     if (!THREE.BufferGeometry.prototype.__patched) {           // mark disposed geometries (leak detection, below)
       const d = THREE.BufferGeometry.prototype.dispose;
       THREE.BufferGeometry.prototype.dispose = function () { this.__disposed = true; return d.call(this); };
       THREE.BufferGeometry.prototype.__patched = true;
+    }
+    if (!window.draw.__wrapped) {
+      // a frame as three's animation loop (off here) starts one: renderer.info reset, the node frame advanced (the
+      // render pipeline's scene pass renders once per frame id)
+      const d = window.draw, nf = renderer._nodes.nodeFrame;
+      window.draw = () => { renderer.info.reset(); nf.update(); renderer.info.frame = nf.frameId; d(); }; window.draw.__wrapped = true;
     }
     H.reset();
   };
@@ -92,11 +102,12 @@
   H.sim = (sec, o = {}) => {
     const n = Math.round(sec / DT), violations = [];
     const check = o.check !== false;
+    const from = o.draw && H.drawLast ? n - Math.round(H.drawLast / DT) : 0;   // H.drawLast: draw only the last seconds
     let i = 0;
     for (; i < n; i++) {
       if (o.audio !== undefined) feed(o.audio);
       step(DT); rt += DT;
-      if (o.draw) draw();   // per-frame visuals too (LINES / GLOW fill-up)
+      if (o.draw && i >= from) draw();   // per-frame visuals too (LINES / GLOW fill-up)
       if (check) for (const s of H.checkInvariants()) if (violations.length < 25) violations.push(`T=${T.toFixed(2)} ${s}`);
       if (o.until && o.until()) { i++; break; }
     }
@@ -116,11 +127,17 @@
   /* ---- rendering ---- */
   H.render = () => draw();
   /* average colour [r, g, b] (0..255) of a rectangle in CSS pixels (y from the top), read straight after a render */
+  /* the canvas copied into a 2D canvas in the same task as the render (its drawing buffer is still there; any backend) */
+  H.pixels = (px, py, pw, ph) => {
+    const c = renderer.domElement, cv = H._cv || (H._cv = document.createElement('canvas')); cv.width = pw; cv.height = ph;
+    const g = cv.getContext('2d', { willReadFrequently: true }); g.clearRect(0, 0, pw, ph); g.drawImage(c, px, py, pw, ph, 0, 0, pw, ph);
+    return g.getImageData(0, 0, pw, ph).data;
+  };
   H.sample = (x, y, w, h) => {
     H.render();
-    const gl = renderer.getContext(), c = renderer.domElement, sx = c.width / innerWidth, sy = c.height / innerHeight;
-    const px = Math.round(x * sx), py = Math.round(c.height - (y + h) * sy), pw = Math.max(1, Math.round(w * sx)), ph = Math.max(1, Math.round(h * sy));
-    const buf = new Uint8Array(pw * ph * 4); gl.readPixels(px, py, pw, ph, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    const c = renderer.domElement, sx = c.width / innerWidth, sy = c.height / innerHeight;
+    const px = Math.round(x * sx), py = Math.round(y * sy), pw = Math.max(1, Math.round(w * sx)), ph = Math.max(1, Math.round(h * sy));
+    const buf = H.pixels(px, py, pw, ph);
     const s = [0, 0, 0]; for (let i = 0; i < buf.length; i += 4) { s[0] += buf[i]; s[1] += buf[i + 1]; s[2] += buf[i + 2]; }
     const n = buf.length / 4; return s.map(x => x / n);
   };
@@ -145,18 +162,56 @@
     const out = { n: 0, bad: 0, cases: [] };
     TERRAIN.uniforms.uDebug.value = 1; draw();
     const shown = scene.children.filter(o => o !== TERRAIN.mesh && o.visible); shown.forEach(o => { o.visible = false; });
-    renderer.render(scene, camera);                       // the ground alone: no lines / labels drawn over it
-    const gl = renderer.getContext(), c = renderer.domElement, buf = new Uint8Array(4), ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
+    renderer.render(scene, camera);                       // the ground alone: no lines / labels drawn over it (no bloom)
+    const c = renderer.domElement, all = H.pixels(0, 0, c.width, c.height), ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
     for (let i = 0; i < n; i++) {
       const x = Math.random() * innerWidth, y = innerHeight * (0.3 + Math.random() * 0.7);
       ray.setFromCamera({ x: x / innerWidth * 2 - 1, y: 1 - y / innerHeight * 2 }, camera);
       if (!ray.ray.intersectPlane(plane, hit)) continue;
       const land = TERRAIN.land(hit.x, hit.z); if (Math.abs(land) < 0.01) continue;   // too close to the coast to judge
-      gl.readPixels(Math.round(x * c.width / innerWidth), Math.round(c.height - y * c.height / innerHeight), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      const buf = [all[(Math.min(c.height - 1, Math.round(y * c.height / innerHeight)) * c.width + Math.min(c.width - 1, Math.round(x * c.width / innerWidth))) * 4]];
       out.n++; if ((buf[0] > 127) !== (land > 0)) { out.bad++; if (out.cases.length < 5) out.cases.push({ x, y, land, px: buf[0] }); }
     }
     TERRAIN.uniforms.uDebug.value = 0; shown.forEach(o => { o.visible = true; });
     return out;
   };
+  /* the same, rendered into a RenderTarget and read back asynchronously (WebGPU: presenting the canvas loses the
+     device in headless Chromium); CSS px = target px here (deviceScaleFactor 1); returns a promise */
+  H.sampleRT = async (x, y, w, h) => {
+    const W = innerWidth, Hh = innerHeight;
+    if (!H._rt) H._rt = new THREE.RenderTarget(W, Hh, { depthBuffer: true });
+    renderer.setRenderTarget(H._rt); try { draw(); } finally { renderer.setRenderTarget(null); }
+    const pw = Math.max(1, Math.round(w)), ph = Math.max(1, Math.round(h));
+    const buf = await renderer.readRenderTargetPixelsAsync(H._rt, Math.round(x), Math.round(GPU.webgpu ? y : Hh - y - h), pw, ph);
+    const s = [0, 0, 0]; for (let i = 0; i < buf.length; i += 4) { s[0] += buf[i]; s[1] += buf[i + 1]; s[2] += buf[i + 2]; }
+    const n = buf.length / 4; return s.map(x => x / n);
+  };
+  /* groundCheck on a RenderTarget, read back asynchronously (WebGPU) */
+  H.groundCheckRT = async (n) => {
+    const out = { n: 0, bad: 0, cases: [] }, W = innerWidth, Hh = innerHeight;
+    if (!H._rt) H._rt = new THREE.RenderTarget(W, Hh, { depthBuffer: true });
+    TERRAIN.uniforms.uDebug.value = 1; TERRAIN.update(camera, CAM.focus);   // not draw(): it would present the canvas
+    const shown = scene.children.filter(o => o !== TERRAIN.mesh && o.visible); shown.forEach(o => { o.visible = false; });
+    renderer.setRenderTarget(H._rt); try { renderer.render(scene, camera); } finally { renderer.setRenderTarget(null); }
+    TERRAIN.uniforms.uDebug.value = 0; shown.forEach(o => { o.visible = true; });
+    const all = await renderer.readRenderTargetPixelsAsync(H._rt, 0, 0, W, Hh);
+    const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const x = Math.random() * W, y = Hh * (0.3 + Math.random() * 0.7);
+      ray.setFromCamera({ x: x / W * 2 - 1, y: 1 - y / Hh * 2 }, camera);
+      if (!ray.ray.intersectPlane(plane, hit)) continue;
+      const land = TERRAIN.land(hit.x, hit.z); if (Math.abs(land) < 0.01) continue;
+      const px = Math.min(W - 1, Math.round(x)), py = Math.min(Hh - 1, Math.round(y)), row = GPU.webgpu ? py : Hh - 1 - py;
+      const v = all[(row * W + px) * 4];
+      out.n++; if ((v > 127) !== (land > 0)) { out.bad++; if (out.cases.length < 5) out.cases.push({ x, y, land, px: v }); }
+    }
+    return out;
+  };
+  /* renderer health and counters */
+  H.programs = () => renderer.info.memory.programs;
+  /* render pipelines created since H.setup (after the warm-up): a new one = a shader compile while running */
+  H.pipelines = () => H._pipes;
+  H.drawCalls = () => renderer.info.render.drawCalls;
+  H.glError = () => { const gl = renderer.backend.gl; return gl ? gl.getError() : 0; };
   H.props = (o) => window.wallpaperPropertyListener.applyUserProperties(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { value: v }])));
 })();

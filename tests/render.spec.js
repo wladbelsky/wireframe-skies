@@ -9,9 +9,9 @@ async function around(wp, who) {
     const p = who === 'friend' ? SQUAD.planes[0].pos : ENEMIES.list.find(e => e.alive && on(e.pos)) ?.pos;
     if (!p) return null;
     const s = __t.screen(p); if (!s || s.x < 0 || s.y < 0 || s.x > innerWidth || s.y > innerHeight) return null;
-    const gl = renderer.getContext(), c = renderer.domElement, k = c.width / innerWidth, R = 14;
-    const x0 = Math.max(0, Math.round((s.x - R) * k)), y0 = Math.max(0, Math.round(c.height - (s.y + R) * k)), w = Math.round(2 * R * k), h = w;
-    const buf = new Uint8Array(w * h * 4); gl.readPixels(x0, y0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    const c = renderer.domElement, k = c.width / innerWidth, R = 14;
+    const x0 = Math.max(0, Math.round((s.x - R) * k)), y0 = Math.max(0, Math.round((s.y - R) * k)), w = Math.round(2 * R * k), h = w;
+    const buf = __t.pixels(x0, y0, w, h);
     let best = [0, 0, 0], bs = -1; for (let i = 0; i < buf.length; i += 4) { const sc = who === 'friend' ? buf[i + 1] - buf[i] : buf[i] - buf[i + 2]; if (sc > bs) { bs = sc; best = [buf[i], buf[i + 1], buf[i + 2]]; } }
     return best;
   }, who);
@@ -116,4 +116,45 @@ test('phone portrait: names fit the screen, the ground under the flight is not f
   });
   expect(r.labelW, 'widest name / screen width').toBeLessThan(0.35);
   expect(r.dF, 'focus nearer than where the fog starts').toBeLessThan(r.fogNear);
+});
+
+test('shader warm-up: the scene compiles before the first frame, nothing compiles in a fight (boss included)', async ({ wp }) => {
+  await wp.boot();
+  const p0 = await wp.run(() => ({ programs: __t.programs(), ready: shadersReady, T }));
+  expect(p0.ready).toBe(true);
+  expect(p0.T, 'the frame loop (and T) starts only after the warm-up').toBe(0);
+  expect(p0.programs, 'programs compiled by the warm-up (ground, LINES, GLOW, trails, labels)').toBeGreaterThanOrEqual(5);
+  // the first frame compiles only the small post-processing passes (bloom, output) — under the splash
+  const p1 = await wp.run(() => { draw(); return __t.pipelines(); });
+  expect(p1, 'pipelines compiled on the first frame').toBeLessThanOrEqual(10);
+  // a frame every simulated second (bloom on SwiftShader is slow): every kind of unit, missile and effect gets drawn
+  const fight = (sec) => wp.run((sec) => { for (let i = 0; i < sec; i++) { __t.sim(1, { audio: true }); draw(); } }, sec);
+  await wp.run(() => { __t.forceFight(); });
+  await fight(30);
+  await wp.run(() => { BOSSES.t = CFG.bossEvery * 60; });
+  const r = await wp.until(() => !!BOSSES.boss && BOSSES.boss.t > 3, 120, { audio: true });
+  expect(r.done, 'a boss came').toBe(true);
+  await fight(20);
+  expect(await wp.run(() => __t.pipelines()), 'render pipelines created after the first frame').toBe(p1);
+});
+
+test('bloom: a glow around the glyphs, off with the property; strength follows its slider', async ({ wp }) => {
+  await wp.boot({ query: '?cam=fixed' });
+  await wp.sim(10);
+  const ring = () => wp.run(() => {
+    const s = __t.screen(SQUAD.planes[0].pos), R = 40;
+    const a = __t.sample(s.x - R, s.y - R, 2 * R, 2 * R);   // the glyph and its surroundings: the halo adds up
+    return { lum: a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722, calls: __t.drawCalls(), pipe: PIPE.on };
+  });
+  const on = await ring();
+  await wp.run(() => __t.props({ bloomstrength: 200 }));
+  const strong = await ring();
+  await wp.run(() => __t.props({ bloom: false }));
+  const off = await ring();
+  expect(on.pipe).toBe(true); expect(off.pipe).toBe(false);
+  expect(off.lum, `no bloom: darker around the glyph ${JSON.stringify([on, strong, off])}`).toBeLessThan(on.lum);
+  expect(strong.lum).toBeGreaterThan(on.lum);
+  expect(off.calls, 'bloom passes cost a few draw calls').toBeLessThan(on.calls);
+  await wp.run(() => __t.props({ bloom: true }));
+  expect((await ring()).pipe).toBe(true);
 });
