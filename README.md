@@ -67,7 +67,7 @@ Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedet
 | Flight / enemy / ally / grid & sea / coast, contour & city colour | the palette |
 | Trail length, s | 0 = no trails |
 | Altitude lines, Names | the vertical lines to the ground and the callsigns / target names |
-| Bloom, Bloom strength, % | a soft glow around glyphs, missiles, bursts and names (off: crisp lines only) |
+| Bloom, Bloom strength, % | a tight glow around glyphs, missiles and bursts (off: their own line halo only; names always carry their own glow) |
 | Squadron callsign | the planes are called `<callsign> 1…4` (letters, digits, spaces, up to 14 characters) |
 | Flight speed, % | how fast everything moves |
 

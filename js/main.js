@@ -88,28 +88,21 @@ async function warmShaders() {
   const hidden = []; scene.traverse(o => { if (!o.visible) hidden.push(o); });
   const counts = [GLOW.mesh.count, LINES.mesh.geometry.instanceCount];
   hidden.forEach(o => { o.visible = true; }); GLOW.mesh.count = 1; LINES.mesh.geometry.instanceCount = 1;
-  const ps = [], mask = camera.layers.mask;
+  const ps = [];
   try {
     ps.push(PIPE.on ? PIPE.scene.compileAsync(renderer) : renderer.compileAsync(scene, camera));
-    if (PIPE.on) { camera.layers.set(LABEL_LAYER); ps.push(PIPE.names.compileAsync(renderer)); }   // its own target (half res, no MSAA)
-  } finally { camera.layers.mask = mask; hidden.forEach(o => { o.visible = false; }); GLOW.mesh.count = counts[0]; LINES.mesh.geometry.instanceCount = counts[1]; }
+  } finally { hidden.forEach(o => { o.visible = false; }); GLOW.mesh.count = counts[0]; LINES.mesh.geometry.instanceCount = counts[1]; }
   await Promise.race([Promise.all(ps.map(p => p.catch(e => { console.warn('shader warm-up failed', e); }))), new Promise(r => setTimeout(r, WARM_WAIT))]);
 }
 
-/* ---- render pipeline (RenderPipeline): the scene pass plus bloom (CFG.bloom: glow around what is brighter than the
-   threshold — glyph cores, missiles, bursts — and a highlight roll-off (rolloff()), so overlapping additive lines fade
-   to white instead of clipping). The names have no glow of their own (core.js labelMat) and their light cores sit
-   around the threshold (red ones below it): a half-resolution pass of LABEL_LAYER adds them × BLOOM.names to the
-   bloom's input only — every name glows, the text on screen and the map stay as they are.
-   Bloom off: plain renderer.render. ---- */
-const BLOOM = { strength: 0.15, radius: 0.45, threshold: 0.75, knee: 0.3, names: 1.2 };   // strength at CFG.bloomStrength = 100 %; threshold: linear luminance (glyph cores, not the map)
-const PIPE = { on: false, key: null, rp: null, scene: null, names: null, bloom: null };
-function initPipeline() {
-  PIPE.scene = THREE.TSL.pass(scene, camera);
-  const L = new THREE.Layers(); L.set(LABEL_LAYER);
-  PIPE.names = THREE.TSL.pass(scene, camera, { samples: 0 }).setResolutionScale(0.5); PIPE.names.setLayers(L);
-  PIPE.rp = new THREE.RenderPipeline(renderer);
-}
+/* ---- render pipeline (RenderPipeline): the scene pass plus bloom (CFG.bloom: a glow around what is brighter than the
+   threshold — glyph cores, missiles, bursts — kept tight: only the two finest blur levels (BLOOM.mips), so a glyph
+   gets a distinct halo, not a wide haze) and a highlight roll-off (rolloff()), so overlapping additive lines fade to white
+   instead of clipping. The names carry their own baked glow (core.js labelMat) and stay out of the bloom's input
+   (their cores sit around the threshold). Bloom off: plain renderer.render. ---- */
+const BLOOM = { strength: 0.15, radius: 0, threshold: 0.75, knee: 0.3, mips: [1, 0.5, 0, 0, 0] };   // strength at CFG.bloomStrength = 100 %; threshold: linear luminance (glyph cores, not the map); mips: weights of the blur levels (bloomTintColors), the wide ones off
+const PIPE = { on: false, key: null, rp: null, scene: null, bloom: null };
+function initPipeline() { PIPE.scene = THREE.TSL.pass(scene, camera); PIPE.rp = new THREE.RenderPipeline(renderer); }
 function updatePipeline() {   // after a property change; a new combination compiles its passes on the next frame
   if (!PIPE.rp) return;
   const k = bloomK(), key = k > 0 ? 'b' : '';
@@ -118,7 +111,8 @@ function updatePipeline() {   // after a property change; a new combination comp
   PIPE.key = key; PIPE.on = key !== '';
   if (PIPE.bloom) { PIPE.bloom.dispose(); PIPE.bloom = null; }
   if (!PIPE.on) return;
-  PIPE.bloom = THREE.bloom(PIPE.scene.add(PIPE.names.mul(BLOOM.names)), k, BLOOM.radius, BLOOM.threshold); PIPE.bloom.smoothWidth.value = BLOOM.knee;
+  PIPE.bloom = THREE.bloom(PIPE.scene, k, BLOOM.radius, BLOOM.threshold); PIPE.bloom.smoothWidth.value = BLOOM.knee;
+  PIPE.bloom.bloomTintColors.forEach((c, i) => c.setScalar(BLOOM.mips[i]));
   PIPE.rp.outputNode = rolloff(PIPE.scene.add(PIPE.bloom)); PIPE.rp.needsUpdate = true;
 }
 const bloomK = () => CFG.bloom ? BLOOM.strength * clamp(CFG.bloomStrength, 0, 300) / 100 : 0;
